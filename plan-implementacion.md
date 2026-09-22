@@ -124,10 +124,10 @@ pnpm dev
 
 **Objetivo:** definir qué se acepta antes de conectar el flujo completo.
 
-- [ ] Crear tipos y esquemas para el payload original y los resultados.
-- [ ] Crear PostgreSQL en Neon, separar desarrollo/pruebas de la demo desplegada, configurar `DATABASE_URL` y ejecutar migraciones versionadas. Usar `date` para pickup/delivery, `timestamptz` para instantes, `numeric` para precio y `jsonb` para el payload; no convertir fechas calendario implícitamente a UTC.
-- [ ] Implementar acceso asíncrono con `pg`, consultas parametrizadas y transacciones sobre un mismo cliente adquirido del pool. Liberar el cliente en `finally`; limitar el pool según las conexiones disponibles.
-- [ ] Implementar `validateDispatch(payload, receivedAt, timeZone)` sin dependencias de UI o broker.
+- [x] Crear tipos y esquemas para el payload original y los resultados.
+- [x] Crear PostgreSQL en Neon, separar desarrollo/pruebas de la demo desplegada, configurar `DATABASE_URL` y ejecutar migraciones versionadas. Usar `date` para pickup/delivery, `timestamptz` para instantes, `numeric` para precio y `jsonb` para el payload; no convertir fechas calendario implícitamente a UTC.
+- [x] Implementar acceso asíncrono con `pg`, consultas parametrizadas y transacciones sobre un mismo cliente adquirido del pool. Liberar el cliente en `finally`; limitar el pool según las conexiones disponibles.
+- [x] Implementar `validateDispatch(payload, receivedAt, timeZone)` sin dependencias de UI o broker.
 - [ ] Mantener el resultado externo con los tres campos requeridos:
 
 ```json
@@ -146,8 +146,8 @@ pnpm dev
 }
 ```
 
-- [ ] Definir motivos para pickup del mismo día fuera de horario, delivery igual/anterior al pickup y estructura inválida. Si hay varios errores, usar un orden determinista y conservar el detalle para la interfaz.
-- [ ] Crear migraciones o inicialización versionada de estas tablas:
+- [x] Definir motivos para pickup del mismo día fuera de horario, delivery igual/anterior al pickup y estructura inválida. Si hay varios errores, usar un orden determinista y conservar el detalle para la interfaz.
+- [x] Crear migraciones o inicialización versionada de estas tablas:
 
 | Tabla | Propósito |
 | --- | --- |
@@ -158,7 +158,7 @@ pnpm dev
 | `processed_events` | Deduplicación por consumidor y eventId |
 
 - [ ] Tratar `shipperOrderId` como único en la demo: misma solicitud repetida devuelve el estado existente; mismo identificador con otro contenido devuelve HTTP 409.
-- [ ] Guardar solicitud y eventos pendientes en una transacción. Esto evita guardar una solicitud y perder su publicación si el broker está temporalmente desconectado.
+- [x] Preparar la utilidad de transacciones para guardar solicitud y eventos pendientes en una transacción. Esto evita guardar una solicitud y perder su publicación si el broker está temporalmente desconectado.
 
 **Salida verificable:** las reglas pasan sus pruebas y la información sobrevive al reinicio.
 
@@ -166,10 +166,10 @@ pnpm dev
 
 **Objetivo:** aprovechar la cuenta free existente con dos colas durables.
 
-- [ ] Entrar a la cuenta y verificar si existe un Event Broker Service activo; tener cuenta no garantiza tener un broker creado.
+- [x] Entrar a la cuenta y verificar si existe un Event Broker Service activo; tener cuenta no garantiza tener un broker creado.
 - [ ] Revisar clase de servicio, vigencia, almacenamiento, conexiones y colas disponibles. No asumir cuotas por la etiqueta “free”; dependen del servicio. Referencias: [primer broker](https://docs.solace.com/Get-Started/tutorial/event-broker-set-up.htm) y [límites por clase](https://docs.solace.com/Cloud/service-class-limits.htm).
-- [ ] Desde la conexión para Node.js obtener URL segura compatible con el SDK, Message VPN, usuario y contraseña de mensajería. No confundirlos con el acceso al portal ni con credenciales administrativas.
-- [ ] Crear mediante el administrador del broker las siguientes colas, durables, con ingreso y consumo habilitados:
+- [x] Desde la conexión para Node.js obtener URL segura compatible con el SDK, Message VPN, usuario y contraseña de mensajería. No confundirlos con el acceso al portal ni con credenciales administrativas.
+- [x] Crear mediante el administrador del broker las siguientes colas, durables, con ingreso y consumo habilitados:
 
 | Cola | Suscripciones a tópicos | Consumidor |
 | --- | --- | --- |
@@ -178,8 +178,8 @@ pnpm dev
 
 El último segmento es `shipperOrderId`. Validarlo para que no contenga `/`, `*` o `>`; el publicador usa siempre un tópico concreto. Los tópicos describen eventos; las colas representan consumidores. Para el MVP habrá un consumidor activo por cola y un único worker con ambos flujos.
 
-- [ ] Configurar permisos de publicación en esos tópicos y consumo de esas colas. Verificar cuotas de almacenamiento y comportamiento ante mensajes no procesables.
-- [ ] Preparar variables privadas, sin prefijo `NEXT_PUBLIC_`:
+- [x] Configurar permisos de publicación en esos tópicos y consumo de esas colas. Verificar cuotas de almacenamiento y comportamiento ante mensajes no procesables.
+- [x] Preparar variables privadas, sin prefijo `NEXT_PUBLIC_`:
 
 ```dotenv
 SOLACE_URL=<url segura copiada de la conexión Node.js>
@@ -194,8 +194,8 @@ DATABASE_URL=<cadena pooled de Neon con TLS para el entorno>
 DATABASE_MIGRATION_URL=<cadena directa de Neon para ejecutar migraciones>
 ```
 
-- [ ] Cargar explícitamente `.env.local` en desarrollo del worker; en Render usar las variables de entorno del servicio. Validar las variables que requiere cada proceso por separado para que Next.js no exija credenciales de Solace.
-- [ ] Implementar sesión compartida del worker, estados de conexión, reconexión y cierre ordenado.
+- [x] Cargar explícitamente `.env`/`.env.local` en desarrollo del worker; en Render usar las variables de entorno del servicio. Validar las variables que requiere cada proceso por separado para que Next.js no exija credenciales de Solace.
+- [x] Implementar sesión compartida del worker, estados de conexión, reconexión y cierre ordenado.
 - [ ] Hacer un smoke test persistente: publicar una carga ficticia, recibirla en la cola correcta y confirmar su procesamiento. Identificarla como prueba para no mezclarla con la demo.
 
 **Salida verificable:** se puede demostrar publicación y consumo contra la cuenta real, sin exponer credenciales.

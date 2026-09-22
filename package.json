@@ -6,7 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:init": "tsx scripts/init-db.ts",
+    "solace:smoke": "tsx scripts/solace-smoke.ts",
+    "worker:dev": "tsx src/worker/index.ts",
+    "worker:start": "tsx src/worker/index.ts"
   },
   "dependencies": {
     "dotenv": "^18.0.2",
