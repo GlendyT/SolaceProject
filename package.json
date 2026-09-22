@@ -11,6 +11,7 @@
     "test": "vitest run",
     "db:init": "tsx scripts/init-db.ts",
     "solace:smoke": "tsx scripts/solace-smoke.ts",
+    "dispatch:smoke": "tsx scripts/dispatch-smoke.ts",
     "worker:dev": "tsx src/worker/index.ts",
     "worker:start": "tsx src/worker/index.ts"
   },

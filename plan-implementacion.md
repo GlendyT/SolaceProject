@@ -116,7 +116,7 @@ pnpm dev
 - [x] Crear navegación entre `/solicitudes/nueva`, `/clientes` y `/transportistas`.
 - [x] Definir componentes simples: tabla, tarjeta de carga, badge de estado, campo de formulario y aviso de error.
 - [ ] Añadir estados vacío, cargando y error; etiquetas accesibles y texto junto a iconos relevantes.
-- [ ] Preparar `.env.example` y excluir `.env`, `.env.local`, respaldos de base de datos y archivos con credenciales de Git.
+- [x] Preparar `.env.example` y excluir `.env`, `.env.local`, respaldos de base de datos y archivos con credenciales de Git.
 
 **Salida verificable:** la aplicación abre localmente, Tailwind aplica estilos y se muestran iconos lucide-react.
 
@@ -157,7 +157,7 @@ pnpm dev
 | `outbox_events` | Publicaciones pendientes, eventId, tópico, payload, intentos y confirmación |
 | `processed_events` | Deduplicación por consumidor y eventId |
 
-- [ ] Tratar `shipperOrderId` como único en la demo: misma solicitud repetida devuelve el estado existente; mismo identificador con otro contenido devuelve HTTP 409.
+- [x] Tratar `shipperOrderId` como único en la demo: misma solicitud repetida devuelve el estado existente; mismo identificador con otro contenido devuelve HTTP 409.
 - [x] Preparar la utilidad de transacciones para guardar solicitud y eventos pendientes en una transacción. Esto evita guardar una solicitud y perder su publicación si el broker está temporalmente desconectado.
 
 **Salida verificable:** las reglas pasan sus pruebas y la información sobrevive al reinicio.
@@ -204,14 +204,14 @@ DATABASE_MIGRATION_URL=<cadena directa de Neon para ejecutar migraciones>
 
 **Objetivo:** completar el flujo asíncrono de solicitudes válidas e inválidas.
 
-- [ ] Implementar `POST /api/dispatch-requests`: capturar hora, validar y guardar solicitud con outbox.
-- [ ] Responder HTTP 202 con identificador y estado técnico pendiente. HTTP 202 no equivale al resultado de negocio `Accepted`; este aparece al procesar la cola de resultados.
-- [ ] Una solicitud válida produce dos mensajes: payload original a `available/{id}` y resultado a `result/accepted/{id}`.
-- [ ] Una solicitud inválida identificable produce únicamente el resultado a `result/cancelled/{id}`. Nunca publicar esa carga en la cola de disponibles.
-- [ ] Mantener el cuerpo de la carga original y el resultado de tres campos; colocar `eventId`, `eventType`, `schemaVersion`, `occurredAt` y correlación en propiedades/metadatos del mensaje.
-- [ ] Publicar con modo `PERSISTENT`, correlacionar confirmaciones del broker y marcar la outbox como enviada solo después del ACK de publicación. Manejar rechazo, timeout y reintento; `send()` por sí solo no prueba la persistencia. Referencia: [modos de entrega de Solace](https://docs.solace.com/API/API-Developer-Guide-JavaScript/JavaScript-API-Message-Delivery-Modes.htm).
-- [ ] Consumir con ACK manual: validar mensaje, guardar proyección y marca de deduplicación en la misma transacción, después ejecutar `acknowledge()`.
-- [ ] Si el mensaje ya se procesó, confirmar sin duplicar datos. Solace puede redeliver y la outbox puede reenviar tras un fallo entre el ACK y el guardado en PostgreSQL.
+- [x] Implementar `POST /api/dispatch-requests`: capturar hora, validar y guardar solicitud con outbox.
+- [x] Responder HTTP 202 con identificador y estado técnico pendiente. HTTP 202 no equivale al resultado de negocio `Accepted`; este aparece al procesar la cola de resultados.
+- [x] Una solicitud válida produce dos mensajes: payload original a `available/{id}` y resultado a `result/accepted/{id}`.
+- [x] Una solicitud inválida identificable produce únicamente el resultado a `result/cancelled/{id}`. Nunca publicar esa carga en la cola de disponibles.
+- [x] Mantener el cuerpo de la carga original y el resultado de tres campos; colocar `eventId`, `eventType`, `schemaVersion`, `occurredAt` y correlación en propiedades/metadatos del mensaje.
+- [x] Publicar con modo `PERSISTENT`, correlacionar confirmaciones del broker y marcar la outbox como enviada solo después del ACK de publicación. Manejar rechazo, timeout y reintento; `send()` por sí solo no prueba la persistencia. Referencia: [modos de entrega de Solace](https://docs.solace.com/API/API-Developer-Guide-JavaScript/JavaScript-API-Message-Delivery-Modes.htm).
+- [x] Consumir con ACK manual: validar mensaje, guardar proyección y marca de deduplicación en la misma transacción, después ejecutar `acknowledge()`.
+- [x] Si el mensaje ya se procesó, confirmar sin duplicar datos. Solace puede redeliver y la outbox puede reenviar tras un fallo entre el ACK y el guardado en PostgreSQL.
 - [ ] Ante fallo transitorio, permitir reintento; ante mensaje ilegible, registrar el error y aplicar una política acotada de redelivery/cola de mensajes muertos configurada en el broker, evitando ciclos infinitos.
 - [ ] No asumir llegada simultánea ni orden entre las dos colas. Cada vista tolera actualización parcial y muestra estados pendientes cuando corresponde.
 - [ ] Añadir logs con identificador de solicitud/evento y un indicador de salud del worker basado en heartbeat, sin credenciales.
