@@ -98,10 +98,10 @@ La distribución acordada es **Next.js en Vercel, PostgreSQL en Neon, worker com
 
 **Objetivo:** tener Next.js funcionando con los frameworks solicitados.
 
-- [ ] Verificar Git, pnpm y una versión LTS de Node compatible con Next.js y el SDK de Solace; registrar las versiones efectivas en README.
-- [ ] Verificar `pnpm --version`. Si pnpm ya está instalado, no es necesario ejecutar Corepack. Si no está disponible, instalarlo mediante la guía oficial de pnpm o habilitar Corepack cuando la versión de Node lo incluya; fijar después la versión en `package.json` con el campo `packageManager` (por ejemplo, `pnpm@10`). Usar la misma versión en desarrollo, Vercel y Render. Node.js 25 ya no distribuye Corepack, por lo que no debe ser una dependencia obligatoria del proyecto.
-- [ ] Crear la aplicación en `global-dispatch/` dentro de esta carpeta, preservando `instrucciones.md` y este plan. Así no se depende de que el generador acepte un directorio ocupado.
-- [ ] Ejecutar, desde la carpeta actual:
+- [x] Verificar Git, pnpm y una versión LTS de Node compatible con Next.js y el SDK de Solace; registrar las versiones efectivas en README.
+- [x] Verificar `pnpm --version`. Si pnpm ya está instalado, no es necesario ejecutar Corepack. Si no está disponible, instalarlo mediante la guía oficial de pnpm o habilitar Corepack cuando la versión de Node lo incluya; fijar después la versión en `package.json` con el campo `packageManager` (por ejemplo, `pnpm@10`). Usar la misma versión en desarrollo, Vercel y Render. Node.js 25 ya no distribuye Corepack, por lo que no debe ser una dependencia obligatoria del proyecto.
+- [x] Crear la aplicación en esta carpeta, preservando `instrucciones.md` y este plan.
+- [x] Ejecutar los comandos iniciales de creación e instalación:
 
 ```powershell
 pnpm create next-app@latest global-dispatch --typescript --tailwind --eslint --app --src-dir --import-alias "@/*"
@@ -111,10 +111,10 @@ pnpm add -D tsx vitest @types/luxon @types/pg
 pnpm dev
 ```
 
-- [ ] Conservar `pnpm-lock.yaml` para reproducibilidad y revisar la compatibilidad real de las dependencias instaladas. No mezclar `package-lock.json` o `yarn.lock` en el repositorio.
-- [ ] Usar la configuración Tailwind generada. Si hiciera falta configuración manual, seguir la guía actual con `@tailwindcss/postcss` y `@import "tailwindcss"`, evitando mezclarla con instrucciones de otras versiones. Referencias: [Next.js](https://nextjs.org/docs/app/getting-started/installation) y [Tailwind](https://tailwindcss.com/docs/installation/framework-guides/nextjs).
-- [ ] Crear navegación entre `/solicitudes/nueva`, `/clientes` y `/transportistas`.
-- [ ] Definir componentes simples: tabla, tarjeta de carga, badge de estado, campo de formulario y aviso de error.
+- [x] Conservar `pnpm-lock.yaml` para reproducibilidad y revisar la compatibilidad real de las dependencias instaladas. No mezclar `package-lock.json` o `yarn.lock` en el repositorio.
+- [x] Usar la configuración Tailwind generada. Si hiciera falta configuración manual, seguir la guía actual con `@tailwindcss/postcss` y `@import "tailwindcss"`, evitando mezclarla con instrucciones de otras versiones. Referencias: [Next.js](https://nextjs.org/docs/app/getting-started/installation) y [Tailwind](https://tailwindcss.com/docs/installation/framework-guides/nextjs).
+- [x] Crear navegación entre `/solicitudes/nueva`, `/clientes` y `/transportistas`.
+- [x] Definir componentes simples: tabla, tarjeta de carga, badge de estado, campo de formulario y aviso de error.
 - [ ] Añadir estados vacío, cargando y error; etiquetas accesibles y texto junto a iconos relevantes.
 - [ ] Preparar `.env.example` y excluir `.env`, `.env.local`, respaldos de base de datos y archivos con credenciales de Git.
 
