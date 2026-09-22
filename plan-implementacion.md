@@ -98,10 +98,10 @@ La distribución acordada es **Next.js en Vercel, PostgreSQL en Neon, worker com
 
 **Objetivo:** tener Next.js funcionando con los frameworks solicitados.
 
-- [ ] Verificar Git, pnpm y una versión LTS de Node compatible con Next.js y el SDK de Solace; registrar las versiones efectivas en README.
-- [ ] Verificar `pnpm --version`. Si pnpm ya está instalado, no es necesario ejecutar Corepack. Si no está disponible, instalarlo mediante la guía oficial de pnpm o habilitar Corepack cuando la versión de Node lo incluya; fijar después la versión en `package.json` con el campo `packageManager` (por ejemplo, `pnpm@10`). Usar la misma versión en desarrollo, Vercel y Render. Node.js 25 ya no distribuye Corepack, por lo que no debe ser una dependencia obligatoria del proyecto.
-- [ ] Crear la aplicación en `global-dispatch/` dentro de esta carpeta, preservando `instrucciones.md` y este plan. Así no se depende de que el generador acepte un directorio ocupado.
-- [ ] Ejecutar, desde la carpeta actual:
+- [x] Verificar Git, pnpm y una versión LTS de Node compatible con Next.js y el SDK de Solace; registrar las versiones efectivas en README.
+- [x] Verificar `pnpm --version`. Si pnpm ya está instalado, no es necesario ejecutar Corepack. Si no está disponible, instalarlo mediante la guía oficial de pnpm o habilitar Corepack cuando la versión de Node lo incluya; fijar después la versión en `package.json` con el campo `packageManager` (por ejemplo, `pnpm@10`). Usar la misma versión en desarrollo, Vercel y Render. Node.js 25 ya no distribuye Corepack, por lo que no debe ser una dependencia obligatoria del proyecto.
+- [x] Crear la aplicación en esta carpeta, preservando `instrucciones.md` y este plan.
+- [x] Ejecutar los comandos iniciales de creación e instalación:
 
 ```powershell
 pnpm create next-app@latest global-dispatch --typescript --tailwind --eslint --app --src-dir --import-alias "@/*"
@@ -111,10 +111,10 @@ pnpm add -D tsx vitest @types/luxon @types/pg
 pnpm dev
 ```
 
-- [ ] Conservar `pnpm-lock.yaml` para reproducibilidad y revisar la compatibilidad real de las dependencias instaladas. No mezclar `package-lock.json` o `yarn.lock` en el repositorio.
-- [ ] Usar la configuración Tailwind generada. Si hiciera falta configuración manual, seguir la guía actual con `@tailwindcss/postcss` y `@import "tailwindcss"`, evitando mezclarla con instrucciones de otras versiones. Referencias: [Next.js](https://nextjs.org/docs/app/getting-started/installation) y [Tailwind](https://tailwindcss.com/docs/installation/framework-guides/nextjs).
-- [ ] Crear navegación entre `/solicitudes/nueva`, `/clientes` y `/transportistas`.
-- [ ] Definir componentes simples: tabla, tarjeta de carga, badge de estado, campo de formulario y aviso de error.
+- [x] Conservar `pnpm-lock.yaml` para reproducibilidad y revisar la compatibilidad real de las dependencias instaladas. No mezclar `package-lock.json` o `yarn.lock` en el repositorio.
+- [x] Usar la configuración Tailwind generada. Si hiciera falta configuración manual, seguir la guía actual con `@tailwindcss/postcss` y `@import "tailwindcss"`, evitando mezclarla con instrucciones de otras versiones. Referencias: [Next.js](https://nextjs.org/docs/app/getting-started/installation) y [Tailwind](https://tailwindcss.com/docs/installation/framework-guides/nextjs).
+- [x] Crear navegación entre `/solicitudes/nueva`, `/clientes` y `/transportistas`.
+- [x] Definir componentes simples: tabla, tarjeta de carga, badge de estado, campo de formulario y aviso de error.
 - [ ] Añadir estados vacío, cargando y error; etiquetas accesibles y texto junto a iconos relevantes.
 - [ ] Preparar `.env.example` y excluir `.env`, `.env.local`, respaldos de base de datos y archivos con credenciales de Git.
 
@@ -124,10 +124,10 @@ pnpm dev
 
 **Objetivo:** definir qué se acepta antes de conectar el flujo completo.
 
-- [ ] Crear tipos y esquemas para el payload original y los resultados.
-- [ ] Crear PostgreSQL en Neon, separar desarrollo/pruebas de la demo desplegada, configurar `DATABASE_URL` y ejecutar migraciones versionadas. Usar `date` para pickup/delivery, `timestamptz` para instantes, `numeric` para precio y `jsonb` para el payload; no convertir fechas calendario implícitamente a UTC.
-- [ ] Implementar acceso asíncrono con `pg`, consultas parametrizadas y transacciones sobre un mismo cliente adquirido del pool. Liberar el cliente en `finally`; limitar el pool según las conexiones disponibles.
-- [ ] Implementar `validateDispatch(payload, receivedAt, timeZone)` sin dependencias de UI o broker.
+- [x] Crear tipos y esquemas para el payload original y los resultados.
+- [x] Crear PostgreSQL en Neon, separar desarrollo/pruebas de la demo desplegada, configurar `DATABASE_URL` y ejecutar migraciones versionadas. Usar `date` para pickup/delivery, `timestamptz` para instantes, `numeric` para precio y `jsonb` para el payload; no convertir fechas calendario implícitamente a UTC.
+- [x] Implementar acceso asíncrono con `pg`, consultas parametrizadas y transacciones sobre un mismo cliente adquirido del pool. Liberar el cliente en `finally`; limitar el pool según las conexiones disponibles.
+- [x] Implementar `validateDispatch(payload, receivedAt, timeZone)` sin dependencias de UI o broker.
 - [ ] Mantener el resultado externo con los tres campos requeridos:
 
 ```json
@@ -146,8 +146,8 @@ pnpm dev
 }
 ```
 
-- [ ] Definir motivos para pickup del mismo día fuera de horario, delivery igual/anterior al pickup y estructura inválida. Si hay varios errores, usar un orden determinista y conservar el detalle para la interfaz.
-- [ ] Crear migraciones o inicialización versionada de estas tablas:
+- [x] Definir motivos para pickup del mismo día fuera de horario, delivery igual/anterior al pickup y estructura inválida. Si hay varios errores, usar un orden determinista y conservar el detalle para la interfaz.
+- [x] Crear migraciones o inicialización versionada de estas tablas:
 
 | Tabla | Propósito |
 | --- | --- |
@@ -158,7 +158,7 @@ pnpm dev
 | `processed_events` | Deduplicación por consumidor y eventId |
 
 - [ ] Tratar `shipperOrderId` como único en la demo: misma solicitud repetida devuelve el estado existente; mismo identificador con otro contenido devuelve HTTP 409.
-- [ ] Guardar solicitud y eventos pendientes en una transacción. Esto evita guardar una solicitud y perder su publicación si el broker está temporalmente desconectado.
+- [x] Preparar la utilidad de transacciones para guardar solicitud y eventos pendientes en una transacción. Esto evita guardar una solicitud y perder su publicación si el broker está temporalmente desconectado.
 
 **Salida verificable:** las reglas pasan sus pruebas y la información sobrevive al reinicio.
 
@@ -166,10 +166,10 @@ pnpm dev
 
 **Objetivo:** aprovechar la cuenta free existente con dos colas durables.
 
-- [ ] Entrar a la cuenta y verificar si existe un Event Broker Service activo; tener cuenta no garantiza tener un broker creado.
+- [x] Entrar a la cuenta y verificar si existe un Event Broker Service activo; tener cuenta no garantiza tener un broker creado.
 - [ ] Revisar clase de servicio, vigencia, almacenamiento, conexiones y colas disponibles. No asumir cuotas por la etiqueta “free”; dependen del servicio. Referencias: [primer broker](https://docs.solace.com/Get-Started/tutorial/event-broker-set-up.htm) y [límites por clase](https://docs.solace.com/Cloud/service-class-limits.htm).
-- [ ] Desde la conexión para Node.js obtener URL segura compatible con el SDK, Message VPN, usuario y contraseña de mensajería. No confundirlos con el acceso al portal ni con credenciales administrativas.
-- [ ] Crear mediante el administrador del broker las siguientes colas, durables, con ingreso y consumo habilitados:
+- [x] Desde la conexión para Node.js obtener URL segura compatible con el SDK, Message VPN, usuario y contraseña de mensajería. No confundirlos con el acceso al portal ni con credenciales administrativas.
+- [x] Crear mediante el administrador del broker las siguientes colas, durables, con ingreso y consumo habilitados:
 
 | Cola | Suscripciones a tópicos | Consumidor |
 | --- | --- | --- |
@@ -178,8 +178,8 @@ pnpm dev
 
 El último segmento es `shipperOrderId`. Validarlo para que no contenga `/`, `*` o `>`; el publicador usa siempre un tópico concreto. Los tópicos describen eventos; las colas representan consumidores. Para el MVP habrá un consumidor activo por cola y un único worker con ambos flujos.
 
-- [ ] Configurar permisos de publicación en esos tópicos y consumo de esas colas. Verificar cuotas de almacenamiento y comportamiento ante mensajes no procesables.
-- [ ] Preparar variables privadas, sin prefijo `NEXT_PUBLIC_`:
+- [x] Configurar permisos de publicación en esos tópicos y consumo de esas colas. Verificar cuotas de almacenamiento y comportamiento ante mensajes no procesables.
+- [x] Preparar variables privadas, sin prefijo `NEXT_PUBLIC_`:
 
 ```dotenv
 SOLACE_URL=<url segura copiada de la conexión Node.js>
@@ -194,8 +194,8 @@ DATABASE_URL=<cadena pooled de Neon con TLS para el entorno>
 DATABASE_MIGRATION_URL=<cadena directa de Neon para ejecutar migraciones>
 ```
 
-- [ ] Cargar explícitamente `.env.local` en desarrollo del worker; en Render usar las variables de entorno del servicio. Validar las variables que requiere cada proceso por separado para que Next.js no exija credenciales de Solace.
-- [ ] Implementar sesión compartida del worker, estados de conexión, reconexión y cierre ordenado.
+- [x] Cargar explícitamente `.env`/`.env.local` en desarrollo del worker; en Render usar las variables de entorno del servicio. Validar las variables que requiere cada proceso por separado para que Next.js no exija credenciales de Solace.
+- [x] Implementar sesión compartida del worker, estados de conexión, reconexión y cierre ordenado.
 - [ ] Hacer un smoke test persistente: publicar una carga ficticia, recibirla en la cola correcta y confirmar su procesamiento. Identificarla como prueba para no mezclarla con la demo.
 
 **Salida verificable:** se puede demostrar publicación y consumo contra la cuenta real, sin exponer credenciales.

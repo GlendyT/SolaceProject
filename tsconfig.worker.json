@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist-worker",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "incremental": false
+  },
+  "include": ["src/worker/**/*.ts", "src/server/**/*.ts", "src/domain/**/*.ts"]
+}
