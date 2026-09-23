@@ -1,7 +1,17 @@
 import { validateDispatch, DEFAULT_BUSINESS_TIME_ZONE } from "@/domain/validate-dispatch";
-import { DuplicateDispatchError, saveDispatchRequest } from "@/server/repositories/dispatch-repository";
+import { DuplicateDispatchError, listDispatchRequests, saveDispatchRequest } from "@/server/repositories/dispatch-repository";
 
 export const runtime = "nodejs";
+
+export async function GET() {
+  try {
+    const requests = await listDispatchRequests();
+    return Response.json({ requests });
+  } catch (error) {
+    console.error("Failed to list dispatch requests", error);
+    return Response.json({ error: "Unable to load dispatch requests." }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   let body: unknown;

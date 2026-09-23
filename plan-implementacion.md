@@ -115,7 +115,7 @@ pnpm dev
 - [x] Usar la configuración Tailwind generada. Si hiciera falta configuración manual, seguir la guía actual con `@tailwindcss/postcss` y `@import "tailwindcss"`, evitando mezclarla con instrucciones de otras versiones. Referencias: [Next.js](https://nextjs.org/docs/app/getting-started/installation) y [Tailwind](https://tailwindcss.com/docs/installation/framework-guides/nextjs).
 - [x] Crear navegación entre `/solicitudes/nueva`, `/clientes` y `/transportistas`.
 - [x] Definir componentes simples: tabla, tarjeta de carga, badge de estado, campo de formulario y aviso de error.
-- [ ] Añadir estados vacío, cargando y error; etiquetas accesibles y texto junto a iconos relevantes.
+- [x] Añadir estados vacío, cargando y error; etiquetas accesibles y texto junto a iconos relevantes.
 - [x] Preparar `.env.example` y excluir `.env`, `.env.local`, respaldos de base de datos y archivos con credenciales de Git.
 
 **Salida verificable:** la aplicación abre localmente, Tailwind aplica estilos y se muestran iconos lucide-react.
@@ -225,11 +225,11 @@ DATABASE_MIGRATION_URL=<cadena directa de Neon para ejecutar migraciones>
 **Objetivo:** cerrar la experiencia de cliente y transportista.
 
 - [ ] Formulario con identificador, fechas, precio, paradas, vehículos y notas; botón para cargar ejemplo y ver JSON.
-- [ ] Historial en `/clientes`: ID, fechas, resultado, motivo y asignación; detalle del payload y resultado recibido.
-- [ ] Dashboard en `/transportistas`: origen/destino, fechas, vehículos, precio, notas y botón “Aceptar carga”.
-- [ ] Crear endpoints `GET /api/dispatch-requests`, `GET /api/dispatch-requests/[id]`, `GET /api/available-dispatches` y `POST /api/dispatch-requests/[id]/assign`.
-- [ ] Actualizar ambos paneles cada 2 segundos, con cancelación al desmontar, manejo de errores y fecha de última actualización. Explicar en README que es actualización casi en tiempo real; SSE es una mejora posterior.
-- [ ] Aceptar mediante una actualización atómica condicionada a `assignmentStatus=Available`. Si dos transportistas intentan la misma carga, solo uno obtiene éxito; el otro recibe HTTP 409 y actualiza su listado.
+- [x] Historial en `/clientes`: ID, fechas, resultado, motivo y asignación; detalle del payload y resultado recibido.
+- [x] Dashboard en `/transportistas`: origen/destino, fechas, vehículos, precio, notas y botón “Aceptar carga”.
+- [x] Crear endpoints `GET /api/dispatch-requests`, `GET /api/dispatch-requests/[id]`, `GET /api/available-dispatches` y `POST /api/dispatch-requests/[id]/assign`.
+- [x] Actualizar ambos paneles cada 2 segundos, con cancelación al desmontar, manejo de errores y fecha de última actualización. Explicar en README que es actualización casi en tiempo real; SSE es una mejora posterior.
+- [x] Aceptar mediante una actualización atómica condicionada a `assignmentStatus=Available`. Si dos transportistas intentan la misma carga, solo uno obtiene éxito; el otro recibe HTTP 409 y actualiza su listado.
 - [ ] Mantener la aceptación del transportista separada del ACK del mensaje. El worker confirma al persistir la carga, sin esperar a que una persona haga clic.
 - [ ] Mostrar conductor y hora de asignación al cliente. La asignación se persiste en PostgreSQL; si se quiere notificar a otros sistemas, añadir después un evento `assigned` con contrato propio, sin cambiar `Accepted`/`Cancelled`.
 - [ ] Usar datos e identidades ficticios para la demo. Antes de publicar, añadir acceso de demostración mediante sesión validada en servidor para páginas y API; entregar el acceso al evaluador por separado. El selector de rol simula actores y no sustituye autorización para usuarios reales.

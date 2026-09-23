@@ -1,7 +1,7 @@
 import { DateTime } from "luxon";
 import { createAvailableEvent, createResultEvent } from "@/domain/events";
 import type { DispatchValidationResult } from "@/domain/dispatch-schema";
-import { withTransaction } from "@/server/db/pool";
+import { getPool, withTransaction } from "@/server/db/pool";
 
 export class DuplicateDispatchError extends Error {
   constructor(message = "A request with this shipperOrderId already exists with different data.") {
@@ -11,6 +11,83 @@ export class DuplicateDispatchError extends Error {
 }
 
 type SavedRequest = { duplicate: boolean; shipperOrderId: string };
+
+export async function listDispatchRequests() {
+  const result = await getPool().query(
+    `SELECT
+       dr.shipper_order_id AS "shipperOrderId",
+       dr.pickup_date AS "pickupDate",
+       dr.delivery_date AS "deliveryDate",
+       dr.validation_status AS "validationStatus",
+       dr.cancellation_reason AS "cancellationReason",
+       dr.received_at AS "receivedAt",
+       COALESCE(rr.status, 'Pending') AS status,
+       COALESCE(rr.notes, 'Esperando procesamiento del worker.') AS notes,
+       rr.received_at AS "resultReceivedAt",
+       dr.raw_payload->'stops'->0->>'city' AS "pickupCity",
+       dr.raw_payload->'stops'->0->>'state' AS "pickupState",
+       dr.raw_payload->'stops'->1->>'city' AS "deliveryCity",
+       dr.raw_payload->'stops'->1->>'state' AS "deliveryState",
+       count(*) OVER ()::int AS "totalCount",
+       count(*) FILTER (WHERE COALESCE(rr.status, 'Pending') = 'Accepted') OVER ()::int AS "acceptedCount",
+       count(*) FILTER (WHERE COALESCE(rr.status, 'Pending') = 'Pending') OVER ()::int AS "pendingCount"
+     FROM dispatch_requests dr
+     LEFT JOIN request_results rr ON rr.shipper_order_id = dr.shipper_order_id
+     ORDER BY dr.received_at DESC
+     LIMIT 100`,
+  );
+  return result.rows;
+}
+
+export async function listAvailableDispatches() {
+  const result = await getPool().query(
+    `SELECT
+       ad.shipper_order_id AS "shipperOrderId",
+       ad.payload,
+       ad.assignment_status AS "assignmentStatus",
+       ad.created_at AS "createdAt"
+     FROM available_dispatches ad
+     WHERE ad.assignment_status = 'Available'
+     ORDER BY ad.created_at DESC
+     LIMIT 100`,
+  );
+  return result.rows;
+}
+
+export async function getDispatchRequest(shipperOrderId: string) {
+  const result = await getPool().query(
+    `SELECT
+       dr.shipper_order_id AS "shipperOrderId", dr.pickup_date AS "pickupDate", dr.delivery_date AS "deliveryDate",
+       dr.price, dr.raw_payload AS payload, dr.validation_status AS "validationStatus", dr.cancellation_reason AS "cancellationReason", dr.received_at AS "receivedAt",
+       rr.status, rr.notes, rr.received_at AS "resultReceivedAt",
+       ad.assignment_status AS "assignmentStatus", ad.carrier_id AS "carrierId", ad.assigned_at AS "assignedAt"
+     FROM dispatch_requests dr
+     LEFT JOIN request_results rr ON rr.shipper_order_id = dr.shipper_order_id
+     LEFT JOIN available_dispatches ad ON ad.shipper_order_id = dr.shipper_order_id
+     WHERE dr.shipper_order_id = $1`,
+    [shipperOrderId],
+  );
+  return result.rows[0] ?? null;
+}
+
+export class DispatchNotFoundError extends Error {}
+export class DispatchAlreadyAssignedError extends Error {}
+
+export async function assignDispatch(shipperOrderId: string, carrierId: string) {
+  return withTransaction(async (client) => {
+    const result = await client.query(
+      `UPDATE available_dispatches
+          SET assignment_status = 'Assigned', carrier_id = $2, assigned_at = now()
+        WHERE shipper_order_id = $1 AND assignment_status = 'Available'
+        RETURNING shipper_order_id AS "shipperOrderId", carrier_id AS "carrierId", assigned_at AS "assignedAt"`,
+      [shipperOrderId, carrierId],
+    );
+    if (result.rowCount) return result.rows[0];
+    const exists = await client.query("SELECT assignment_status FROM available_dispatches WHERE shipper_order_id = $1", [shipperOrderId]);
+    if (!exists.rowCount) throw new DispatchNotFoundError("Dispatch was not found.");
+    throw new DispatchAlreadyAssignedError("Dispatch is no longer available.");
+  });
+}
 
 function validDateOrNull(value: unknown) {
   if (typeof value !== "string") return null;
