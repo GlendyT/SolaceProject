@@ -33,7 +33,8 @@ export function validateDispatch(
   const parsed = dispatchRequestSchema.safeParse(input);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    const reason = issue?.message ?? "The request payload is invalid.";
+    const path = issue?.path?.length ? ` (${issue.path.join(".")})` : "";
+    const reason = issue ? `${issue.message}${path}` : "The request payload is invalid.";
     const shipperOrderId = getCandidateOrderId(input);
     return shipperOrderId ? cancelled(shipperOrderId, `Invalid request payload: ${reason}`) : {
       ok: false,
