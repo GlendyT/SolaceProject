@@ -22,8 +22,10 @@
     "next": "16.3.5",
     "pg": "^8.23.0",
     "react": "19.2.8",
+    "react-day-picker": "^10.0.1",
     "react-dom": "19.2.8",
     "solclientjs": "^10.18.3",
+    "sonner": "^2.0.8",
     "zod": "^4.6.5"
   },
   "devDependencies": {

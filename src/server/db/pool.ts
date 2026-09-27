@@ -5,7 +5,8 @@ let pool: Pool | undefined;
 export function getPool() {
   if (!pool) {
     const connectionString = process.env.DATABASE_URL;
-    if (!connectionString) throw new Error("DATABASE_URL is required to connect to PostgreSQL.");
+    if (!connectionString)
+      throw new Error("DATABASE_URL is required to connect to PostgreSQL.");
     pool = new Pool({
       connectionString,
       max: Number(process.env.DATABASE_POOL_MAX ?? 5),
@@ -17,7 +18,9 @@ export function getPool() {
   return pool;
 }
 
-export async function withTransaction<T>(callback: (client: PoolClient) => Promise<T>) {
+export async function withTransaction<T>(
+  callback: (client: PoolClient) => Promise<T>,
+) {
   const client = await getPool().connect();
   try {
     await client.query("BEGIN");

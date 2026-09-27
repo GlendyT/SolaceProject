@@ -1,241 +1,361 @@
-# Global Dispatch
+# Global Dispatch | NewCron
 
-Demo de gestión de cargas para NewCron. Recibe solicitudes, valida fechas de negocio, publica eventos persistentes en Solace Cloud y mantiene vistas para clientes y transportistas.
+Plataforma de alta confiabilidad para la gestión y despacho de solicitudes de transporte de vehículos. Implementa una arquitectura orientada a eventos con **Next.js 16**, **PostgreSQL en Neon**, **Solace Cloud** y un **Worker desacoplado con Transactional Outbox**, garantizando validación estricta de reglas de negocio, mensajería persistente y actualización atómica entre clientes y transportistas.
 
-## Arquitectura desplegada
+> 🌐 **Demo en Vivo / Live Demo:**  
+> **[https://solace-project-guatemaltek.vercel.app/solicitudes/nueva](https://solace-project-guatemaltek.vercel.app/solicitudes/nueva)**  
+> *Desplegado en Vercel y conectado a PostgreSQL Neon y Solace Cloud para pruebas en tiempo real.*
 
-```mermaid
-flowchart LR
-  Browser[Cliente] --> Vercel[Next.js en Vercel]
-  Vercel --> Neon[(PostgreSQL en Neon)]
-  Neon --> Worker[Worker Node.js en Oracle VM + PM2]
-  Worker <--> Solace[Solace Cloud]
-  Worker --> Neon
-```
+---
 
-- **Frontend y API:** Next.js 16, TypeScript, Tailwind CSS 4 y lucide-react en Vercel.
-- **Base de datos:** PostgreSQL en Neon mediante `pg`.
-- **Mensajería:** Solace Cloud mediante `solclientjs` sobre WSS.
-- **Worker:** Node.js en una VM Oracle Cloud Always Free, administrado con PM2.
-- **Gestor de paquetes:** pnpm 10.19.0.
+## Índice
+0. [Demo en Vivo](#demo-en-vivo)
+1. [Arquitectura General y Componentes](#arquitectura-general-y-componentes)
+2. [¿Qué es y para qué sirve Solace Cloud?](#qué-es-y-para-qué-sirve-solace-cloud)
+3. [¿Qué es y cómo funciona el Worker?](#qué-es-y-cómo-funciona-el-worker)
+4. [Base de Datos y Modelo de Datos](#base-de-datos-y-modelo-de-datos)
+5. [Diagramas de Flujo, UML y Secuencia](#diagramas-de-flujo-uml-y-secuencia)
+6. [Casos de Uso](#casos-de-uso)
+7. [Nuevas Funcionalidades y Mejoras Implementadas](#nuevas-funcionalidades-y-mejoras-implementadas)
+8. [Contrato de la Solicitud y Reglas de Negocio](#contrato-de-la-solicitud-y-reglas-de-negocio)
+9. [Endpoints de la API](#endpoints-de-la-api)
+10. [Instalación, Migraciones y Ejecución Local](#instalación-migraciones-y-ejecución-local)
 
-## Casos de uso
+---
 
-| Actor | Caso de uso | Resultado |
-| --- | --- | --- |
-| Cliente | Registrar una solicitud de carga | La solicitud queda validada y encolada para procesamiento. |
-| Cliente | Consultar historial y detalle | Ve fechas, resultado, motivo y asignación. |
-| Transportista | Consultar cargas disponibles | Ve únicamente cargas válidas procesadas por el worker. |
-| Transportista | Aceptar una carga | La carga se asigna una sola vez mediante una actualización atómica. |
-| Worker | Publicar eventos pendientes | Envía la outbox a los tópicos persistentes de Solace. |
-| Worker | Consumir resultados y cargas | Guarda proyecciones y confirma mensajes con ACK manual. |
-| Operador | Reiniciar o actualizar el worker | PM2 conserva el proceso y permite revisar sus logs. |
+## Demo en Vivo
 
-### Diagrama UML de componentes
+La aplicación se encuentra desplegada y operativa en Vercel:
 
-```mermaid
-classDiagram
-  class Cliente {
-    +registrarSolicitud(payload)
-    +consultarHistorial()
-    +verDetalle(shipperOrderId)
-  }
-  class Transportista {
-    +consultarCargas()
-    +aceptarCarga(shipperOrderId)
-  }
-  class NextApp {
-    +POST /api/dispatch-requests
-    +GET /api/dispatch-requests
-    +GET /api/available-dispatches
-    +POST /api/dispatch-requests/id/assign
-  }
-  class PostgreSQL {
-    +dispatch_requests
-    +outbox_events
-    +available_dispatches
-    +request_results
-    +processed_events
-  }
-  class Worker {
-    +publishOutbox()
-    +consumeAvailable()
-    +consumeResults()
-    +acknowledge()
-  }
-  class SolaceCloud {
-    +availableQueue
-    +resultsQueue
-    +persistentTopics
-  }
-  Cliente --> NextApp : HTTP
-  Transportista --> NextApp : HTTP
-  NextApp --> PostgreSQL : SQL parametrizado
-  Worker --> PostgreSQL : outbox y proyecciones
-  Worker <--> SolaceCloud : publicar y consumir
-```
+| Módulo / Vista | Enlace de Acceso | Descripción |
+|---|---|---|
+| **Nueva Solicitud** | [solace-project-guatemaltek.vercel.app/solicitudes/nueva](https://solace-project-guatemaltek.vercel.app/solicitudes/nueva) | Formulario con Zippopotam.us, calendario Shadcn e inspección previa de payload. |
+| **Historial Clientes** | [solace-project-guatemaltek.vercel.app/clientes](https://solace-project-guatemaltek.vercel.app/clientes) | Listado en tiempo real con estatus, notas y modal de inspección JSON de cada solicitud. |
+| **Cargas Disponibles** | [solace-project-guatemaltek.vercel.app/transportistas](https://solace-project-guatemaltek.vercel.app/transportistas) | Portal de transportistas para aceptar o cancelar cargas con diálogos de confirmación Shadcn. |
 
-### Diagrama UML de interacción
+---
 
-```mermaid
-sequenceDiagram
-  actor Cliente
-  participant API as Next.js API
-  participant DB as Neon PostgreSQL
-  participant W as Worker Oracle + PM2
-  participant S as Solace Cloud
-  participant T as Transportista
-
-  Cliente->>API: POST /api/dispatch-requests
-  API->>DB: Validar y guardar solicitud + outbox
-  API-->>Cliente: HTTP 202 Accepted técnico
-  W->>DB: Leer outbox pendiente
-  W->>S: Publicar PERSISTENT
-  S-->>W: ACK de publicación
-  W->>DB: Marcar published_at
-  S-->>W: Entregar available/result
-  W->>DB: Guardar proyección + processed_events
-  W-->>S: ACK manual
-  T->>API: POST /assign
-  API->>DB: UPDATE ... WHERE assignment_status = Available
-  DB-->>API: Asignación única o conflicto
-  API-->>T: HTTP 200 o HTTP 409
-  Cliente->>API: GET historial/detalle
-  API->>DB: Consultar estado actual
-  API-->>Cliente: Accepted, Cancelled o Pending
-```
-
-### Diagrama de flujo de una solicitud
+## Arquitectura General y Componentes
 
 ```mermaid
 flowchart TD
-  A[Cliente envía payload] --> B{JSON válido y tiene shipperOrderId?}
-  B -- No --> C[HTTP 400]
-  B -- Sí --> D[Validar estructura y reglas de fechas]
-  D --> E{¿Payload válido?}
-  E -- No --> F[Guardar Cancelled y un evento de resultado]
-  E -- Sí --> G[Guardar Accepted y dos eventos en outbox]
-  F --> H[Worker publica result/cancelled]
-  G --> I[Worker publica available y result/accepted]
-  I --> J[Solace entrega a las dos colas]
-  J --> K[Worker guarda proyecciones y confirma con ACK]
-  H --> L[Cliente consulta resultado Cancelled]
-  K --> M[Transportista ve la carga disponible]
-  M --> N{¿Aceptación atómica exitosa?}
-  N -- Sí --> O[Guardar Assigned, carrier_id y assigned_at]
-  N -- No --> P[HTTP 409: carga ya asignada]
-  O --> Q[Cliente consulta asignación]
+  subgraph Frontend_API ["Vercel: Next.js 16 (App Router)"]
+    UI_New["/solicitudes/nueva (Formulario)"]
+    UI_Hist["/clientes (Historial)"]
+    UI_Carrier["/transportistas (Cargas)"]
+    API_Dispatch["API: /api/dispatch-requests"]
+    API_Assign["API: /api/dispatch-requests/{id}/assign"]
+    API_Cancel["API: /api/dispatch-requests/{id}/cancel"]
+  end
+
+  subgraph Database ["PostgreSQL (Neon)"]
+    T_Requests[("dispatch_requests")]
+    T_Outbox[("outbox_events")]
+    T_Available[("available_dispatches")]
+    T_Results[("request_results")]
+    T_Processed[("processed_events")]
+  end
+
+  subgraph Worker_Node ["Worker Node.js (Oracle Cloud VM / Local)"]
+    Publisher["Publisher: Lee outbox y envía a Solace"]
+    Consumer_Avail["Consumer: Procesa cola available"]
+    Consumer_Res["Consumer: Procesa cola results"]
+  end
+
+  subgraph Broker_Solace ["Solace Cloud (Guaranteed Messaging)"]
+    Topic_Avail["Tópico: newcron/dispatch/v1/available/*"]
+    Topic_Acc["Tópico: newcron/dispatch/v1/result/accepted/*"]
+    Topic_Canc["Tópico: newcron/dispatch/v1/result/cancelled/*"]
+    Queue_Avail["Cola: newcron.global-dispatch.available.v1"]
+    Queue_Res["Cola: newcron.global-dispatch.results.v1"]
+  end
+
+  UI_New --> API_Dispatch
+  UI_Hist --> API_Dispatch
+  UI_Carrier --> API_Assign
+  UI_Carrier --> API_Cancel
+
+  API_Dispatch -->|Transacción atómica: Solicitud + Outbox| T_Requests
+  API_Dispatch --> T_Outbox
+  API_Assign -->|Update atómico: Available -> Assigned| T_Available
+  API_Cancel -->|Update atómico: Available -> Cancelled| T_Available
+  API_Cancel --> T_Results
+
+  Publisher -->|Polling continuo| T_Outbox
+  Publisher -->|Publicación PERSISTENT| Broker_Solace
+  Broker_Solace --> Queue_Avail
+  Broker_Solace --> Queue_Res
+
+  Queue_Avail -->|Mensajería con ACK manual| Consumer_Avail
+  Queue_Res -->|Mensajería con ACK manual| Consumer_Res
+
+  Consumer_Avail -->|Guardar proyección| T_Available
+  Consumer_Avail -->|Deduplicación| T_Processed
+  Consumer_Res -->|Guardar resultado| T_Results
+  Consumer_Res -->|Deduplicación| T_Processed
 ```
 
-## Flujo principal
+---
 
-1. El cliente envía una solicitud desde `/solicitudes/nueva`.
-2. `POST /api/dispatch-requests` valida y guarda la solicitud junto con eventos en `outbox_events`.
-3. El worker publica los eventos pendientes en Solace con modo `PERSISTENT`.
-4. El worker consume ambas colas con ACK manual y deduplicación por `eventId`.
-5. Las proyecciones se guardan en `available_dispatches` y `request_results`.
-6. `/clientes` muestra el historial y `/transportistas` muestra las cargas disponibles.
-7. La aceptación utiliza una actualización atómica; una segunda aceptación recibe HTTP 409.
+## ¿Qué es y para qué sirve Solace Cloud?
 
-Una solicitud válida publica:
+**Solace Cloud** es un broker de mensajería empresarial de nivel corporativo que actúa como la columna vertebral de eventos distribuidos de la plataforma.
 
-```text
-newcron/dispatch/v1/available/{shipperOrderId}
-newcron/dispatch/v1/result/accepted/{shipperOrderId}
+### ¿Por qué se utiliza en este proyecto?
+1. **Desacoplamiento total**: El API web que recibe las solicitudes no necesita esperar a que los transportistas o sistemas externos procesen la carga; simplemente valida y despacha el evento.
+2. **Mensajería Garantizada (Persistent Messaging)**: Todos los mensajes se publican con modo `PERSISTENT`. Si el worker o el servidor se reinician, los mensajes permanecen almacenados de forma segura en las colas de Solace sin pérdida de información.
+3. **Enrutamiento inteligente por tópicos (Topic Hierarchy)**:
+   * `newcron/dispatch/v1/available/{shipperOrderId}`: Cargas válidas que los transportistas pueden tomar.
+   * `newcron/dispatch/v1/result/accepted/{shipperOrderId}`: Resultados de solicitudes aprobadas por las reglas de fechas.
+   * `newcron/dispatch/v1/result/cancelled/{shipperOrderId}`: Resultados de solicitudes rechazadas con su motivo de cancelación.
+4. **Colas Durables con Suscripciones**:
+   * **Cola de disponibles (`newcron.global-dispatch.available.v1`)**: Suscrita a `newcron/dispatch/v1/available/*`.
+   * **Cola de resultados (`newcron.global-dispatch.results.v1`)**: Suscrita a `newcron/dispatch/v1/result/*`.
+
+---
+
+## ¿Qué es y cómo funciona el Worker?
+
+El **Worker** es un proceso autónomo de Node.js (diseñado para ejecutarse 24/7 en una máquina virtual o en background) que conecta PostgreSQL con Solace Cloud.
+
+### Funciones Principales:
+1. **Patrón Transactional Outbox (Publicador)**:
+   * Evita el problema del doble commit distribuido (fallar al guardar en base de datos o fallar al publicar en el broker).
+   * La API web guarda en una sola transacción SQL la solicitud en `dispatch_requests` y los eventos en `outbox_events`.
+   * El Worker lee continuamente los registros pendientes (`published_at IS NULL`) de `outbox_events`, los envía a Solace y marca `published_at = now()` únicamente cuando el broker confirma la recepción mediante ACK.
+2. **Consumo con Confirmación Manual (ACK Manual)**:
+   * Los consumidores de cargas y resultados consumen las colas de Solace de forma continua.
+   * **Primero se persiste** la proyección en PostgreSQL (`available_dispatches` o `request_results`).
+   * **Luego se confirma** el mensaje en Solace mediante `message.acknowledge()`. Si el worker colapsa antes de guardar en la base de datos, Solace reenviará el mensaje intacto.
+3. **Idempotencia y Deduplicación**:
+   * Cada evento tiene un `event_id` único (UUID v4).
+   * La tabla `processed_events` registra los IDs de eventos ya procesados, evitando duplicados si ocurre un reintento en la red.
+
+---
+
+## Base de Datos y Modelo de Datos
+
+La persistencia se gestiona en **PostgreSQL (Neon)**. El sistema utiliza migraciones ordenadas en `/migrations`.
+
+### Tablas:
+* `dispatch_requests`: Almacena la solicitud original, fechas, precio, payload completo en JSONB (`raw_payload`), estado de validación inicial (`Accepted` o `Cancelled`) y motivo de cancelación.
+* `outbox_events`: Eventos pendientes y publicados hacia Solace (`topic`, `payload`, `attempts`, `published_at`).
+* `available_dispatches`: Cargas listas para ser visualizadas y tomadas por transportistas. Controla el estado de asignación: `'Available'`, `'Assigned'` o `'Cancelled'`.
+* `request_results`: Proyección de estado consultable para el cliente (`Accepted` o `Cancelled`) con sus notas descriptivas.
+* `processed_events`: Registro de deduplicación de eventos consumidos por el worker.
+
+```mermaid
+erDiagram
+  dispatch_requests ||--o| available_dispatches : "genera si es válida"
+  dispatch_requests ||--o| request_results : "genera resultado"
+  dispatch_requests ||--o{ outbox_events : "publica eventos"
+  processed_events }|--|| dispatch_requests : "garantiza idempotencia"
+
+  dispatch_requests {
+    text shipper_order_id PK
+    date pickup_date
+    date delivery_date
+    numeric price
+    jsonb raw_payload
+    text validation_status
+    text cancellation_reason
+    timestamptz received_at
+    timestamptz created_at
+  }
+
+  available_dispatches {
+    text shipper_order_id PK, FK
+    jsonb payload
+    text assignment_status "Available | Assigned | Cancelled"
+    text carrier_id
+    timestamptz assigned_at
+    timestamptz created_at
+  }
+
+  request_results {
+    text shipper_order_id PK, FK
+    text status "Accepted | Cancelled"
+    text notes
+    text event_id
+    timestamptz received_at
+  }
+
+  outbox_events {
+    text event_id PK
+    text shipper_order_id FK
+    text event_type
+    text topic
+    jsonb payload
+    integer attempts
+    timestamptz published_at
+  }
 ```
 
-Una solicitud inválida identificable publica únicamente:
+---
 
-```text
-newcron/dispatch/v1/result/cancelled/{shipperOrderId}
+## Diagramas de Flujo, UML y Secuencia
+
+### Diagrama de Secuencia Completo (Registro, Solace, Asignación y Cancelación)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Cliente as Cliente (Web)
+  participant API as Next.js API
+  participant DB as Neon PostgreSQL
+  participant W as Worker (Node.js)
+  participant Solace as Solace Cloud
+  actor Transp as Transportista (Web)
+
+  Note over Cliente, API: 1. Registro de Solicitud
+  Cliente->>API: POST /api/dispatch-requests
+  API->>API: Validar reglas de fechas (US Eastern)
+  API->>DB: INSERT dispatch_requests + outbox_events
+  API-->>Cliente: Toast: "Solicitud recibida" o "Solicitud cancelada"
+
+  Note over W, Solace: 2. Outbox & Publicación a Solace
+  W->>DB: SELECT * FROM outbox_events WHERE published_at IS NULL
+  W->>Solace: Publicar PERSISTENT en tópicos disponibles/resultados
+  Solace-->>W: Confirmación de recepción (ACK)
+  W->>DB: UPDATE outbox_events SET published_at = now()
+
+  Note over Solace, W: 3. Consumo de Colas y Proyecciones
+  Solace->>W: Mensaje de carga válida (Queue Available)
+  W->>DB: INSERT INTO available_dispatches
+  W-->>Solace: ACK manual
+  Solace->>W: Mensaje de resultado (Queue Results)
+  W->>DB: INSERT INTO request_results
+  W-->>Solace: ACK manual
+
+  Note over Transp, DB: 4. Interacción del Transportista
+  Transp->>API: GET /api/available-dispatches
+  API->>DB: SELECT FROM available_dispatches WHERE status = 'Available'
+  API-->>Transp: Lista de cargas disponibles
+
+  alt Aceptar Carga
+    Transp->>API: POST /api/dispatch-requests/{id}/assign
+    API->>DB: UPDATE available_dispatches SET status='Assigned' WHERE status='Available'
+    DB-->>API: 1 fila modificada
+    API-->>Transp: Toast: "Carga aceptada con éxito"
+  else Cancelar Carga (con ConfirmDialog)
+    Transp->>API: POST /api/dispatch-requests/{id}/cancel
+    API->>DB: UPDATE available_dispatches SET status='Cancelled' + request_results='Cancelled'
+    DB-->>API: Éxito
+    API-->>Transp: Toast: "Carga cancelada correctamente"
+  end
 ```
 
-## Contrato de la solicitud
+---
 
-El payload de entrada conserva la estructura definida por el ejercicio:
+## Casos de Uso
 
+| Actor | Caso de Uso | Descripción | Resultado en el Sistema |
+| :--- | :--- | :--- | :--- |
+| **Cliente** | Previsualizar Payload | Clic en *"Ver payload"* antes de enviar el formulario. | Modal con JSON estructurado en tiempo real y botón para copiar. |
+| **Cliente** | Autocompletar Dirección | Digitar el ZIP Code de 5 dígitos en origen o destino. | Consulta a Zippopotam.us y autocompleta Ciudad y Estado. |
+| **Cliente** | Registrar Solicitud | Envío del formulario de despacho. | Valida reglas de fechas, guarda en base de datos y encola en Outbox. Notificación vía Toast. |
+| **Cliente** | Consultar Historial | Vista `/clientes` y `/clientes/[id]`. | Muestra tabla con filtros, estado (`Accepted` o `Cancelled`), notas y botón para ver el payload resultante. |
+| **Transportista**| Inspeccionar Carga | Clic en *"Payload"* en cualquier tarjeta disponible. | Muestra el JSON emitido por Solace con paradas, vehículos y precios. |
+| **Transportista**| Aceptar Carga | Clic en *"Aceptar carga"*. | Asignación atómica (`Assigned`) con transportista demo. La carga desaparece de disponibles. |
+| **Transportista**| Cancelar Carga | Clic en *"Cancelar"* en una carga disponible. | Abre `ConfirmDialog` de shadcn. Si confirma, la carga pasa a `Cancelled` y se notifica al cliente. |
+| **Worker** | Publicación Outbox | Monitoreo continuo de eventos pendientes. | Publica con modo `PERSISTENT` en Solace Cloud y marca marca temporal. |
+| **Worker** | Consumo Garantizado | Lectura de colas de Solace con ACK manual. | Actualiza proyecciones PostgreSQL de forma idempotente con `processed_events`. |
+
+---
+
+## Nuevas Funcionalidades y Mejoras Implementadas
+
+### 1. Sistema de Notificaciones Toast con shadcn / Sonner
+* Reemplazo de los mensajes de error estáticos por toasts interactivos y accesibles.
+* Validación en el cliente con `noValidate` para avisar de forma inmediata qué campo falta antes del envío.
+* Toasts informativos ante respuestas del servidor (`toast.success` y `toast.error`).
+
+### 2. Selector de Fechas con shadcn Calendar (`react-day-picker`)
+* Integración de calendarios en español.
+* **Regla 1 (Pickup)**: Bloqueo de fechas anteriores al día de hoy en la zona `America/New_York`.
+* **Regla 2 (Delivery)**: Bloqueo de fechas que no tengan al menos un día calendario de diferencia respecto a la recogida.
+* **Ajuste automático**: Si la fecha de recogida cambia y deja inválida la entrega, el sistema reinicia la fecha de entrega y emite un toast de advertencia.
+
+### 3. Autocompletado de Códigos Postales con Zippopotam.us
+* Reordenamiento del bloque de paradas: **ZIP code primero**.
+* Al ingresar 5 dígitos numéricos, consulta `https://api.zippopotam.us/us/{zip}` sin requerir API keys.
+* Rellena automáticamente la Ciudad y el Estado (código de 2 letras), manteniendo los campos editables.
+* Indicador de carga animado (`LoaderCircle`) dentro del input.
+
+### 4. Visualizador de Payloads en las 3 Vistas (`PayloadModal`)
+* Componente modal con diseño oscuro para código (`pre` / `code`), backdrop blur y botón de copiado rápido al portapapeles.
+* **En Nueva Solicitud**: Permite revisar el payload exacto antes de ser transmitido.
+* **En Historial de Clientes**: Muestra el JSON de la orden incluyendo su estado final (`status: "Accepted" | "Cancelled"`) y las notas emitidas.
+* **En Cargas Disponibles**: Permite al transportista inspeccionar el payload de Solace.
+
+### 5. Cancelación de Cargas para Transportistas con `ConfirmDialog`
+* Nueva migración `003_allow_cancelled_assignment_status.sql` para habilitar el estado `Cancelled`.
+* Endpoint seguro `POST /api/dispatch-requests/{id}/cancel` con actualización atómica de `available_dispatches`, `request_results` y `dispatch_requests`.
+* Reemplazo de `window.confirm` por un componente `ConfirmDialog` estilizado con shadcn, botones de peligro, cierre con tecla `Esc` y estados de carga.
+
+---
+
+## Contrato de la Solicitud y Reglas de Negocio
+
+### Payload de Entrada:
 ```json
 {
   "shipperOrderId": "6600111",
-  "pickupDate": "2026-09-24",
-  "deliveryDate": "2026-09-25",
-  "price": 900,
+  "pickupDate": "2026-09-28",
+  "deliveryDate": "2026-09-30",
+  "price": 950.00,
   "stops": [
     { "stopNumber": 1, "city": "Milford", "state": "MA", "postalCode": "01757" },
     { "stopNumber": 2, "city": "Shippensburg", "state": "PA", "postalCode": "17257" }
   ],
   "vehicles": [
-    { "year": "2010", "make": "Toyota", "model": "Corolla" }
+    { "year": "2020", "make": "Freightliner", "model": "Cascadia" }
   ],
-  "transportationReleaseNotes": "Verify the pickup date."
+  "transportationReleaseNotes": "Manejar con precaución."
 }
 ```
 
-Reglas aplicadas en `America/New_York`:
+### Reglas de Validación (Zona `America/New_York`):
+1. **Pickup**: No puede ser anterior a la fecha actual.
+2. **Same-day Cutoff (15:00 Eastern)**: Si la recogida es hoy, la solicitud debe recibirse a las 15:00:00 o antes. Si se recibe a las 15:00:01 o después, se marca como `Cancelled`.
+3. **Delivery**: Debe ser al menos un día calendario posterior a la fecha de pickup.
+4. **Validaciones de estructura**: Precios mayores a 0, códigos postales válidos, paradas ordenadas y al menos un vehículo.
 
-- `pickupDate` no puede ser anterior al día actual.
-- Si pickup es hoy, una solicitud recibida después de las 3:00 p.m. se cancela.
-- Una solicitud recibida exactamente a las 3:00 p.m. todavía es válida.
-- `deliveryDate` debe ser al menos un día calendario posterior a pickup.
-- Las fechas se comparan como fechas de negocio, sin convertirlas implícitamente a UTC.
-- Un payload ilegible o sin `shipperOrderId` devuelve HTTP 400.
-- Un payload inválido con `shipperOrderId` identificable se guarda como `Cancelled`.
+---
 
-Resultados de negocio:
+## Endpoints de la API
 
-```json
-{
-  "shipperOrderId": "6600111",
-  "status": "Accepted",
-  "notes": "You will receive an email when a carrier accepts this dispatch request"
-}
-```
+| Método | Endpoint | Descripción | Respuestas |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/dispatch-requests` | Valida y guarda la solicitud en base de datos y outbox. | `202 Accepted` / `400 Bad Request` / `409 Conflict` |
+| `GET` | `/api/dispatch-requests` | Lista el historial con proyecciones y `rawPayload`. | `200 OK` / `500 Error` |
+| `GET` | `/api/dispatch-requests/{id}` | Retorna el detalle completo y estado de asignación. | `200 OK` / `404 Not Found` |
+| `GET` | `/api/available-dispatches` | Lista cargas disponibles para transportistas. | `200 OK` / `500 Error` |
+| `POST` | `/api/dispatch-requests/{id}/assign` | Acepta una carga de forma atómica. | `200 OK` / `404 Not Found` / `409 Conflict` |
+| `POST` | `/api/dispatch-requests/{id}/cancel` | Cancela/rechaza una carga disponible. | `200 OK` / `404 Not Found` / `409 Conflict` |
 
-```json
-{
-  "shipperOrderId": "7743789",
-  "status": "Cancelled",
-  "notes": "Pickup date cannot be earlier than the current date."
-}
-```
+---
 
-## Requisitos
+## Instalación, Migraciones y Ejecución Local
 
-- Node.js LTS compatible con Next.js y `solclientjs`.
-- pnpm 10.19.0.
-- PostgreSQL en Neon.
-- Event Broker Service y credenciales de mensajería en Solace Cloud.
-
-## Instalación local
-
+### 1. Clonar el repositorio e instalar dependencias:
 ```bash
-git clone <url-del-repositorio>
+git clone https://github.com/GlendyT/SolaceProject.git
 cd SolaceProject
-pnpm install --frozen-lockfile
+pnpm install
+```
+
+### 2. Configurar variables de entorno:
+Copiar `.env.example` a `.env`:
+```bash
 cp .env.example .env
 ```
-
-En PowerShell:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-No subas `.env`, `.env.local`, claves privadas, respaldos de base de datos ni `vm.json`.
-
-## Variables de entorno
-
-La aplicación web necesita:
-
+Asegurar que `DATABASE_URL` contenga la cadena de conexión de Neon y las credenciales de Solace Cloud:
 ```dotenv
-DATABASE_URL=postgresql://...
+DATABASE_URL=postgresql://neondb_owner:...@...neon.tech/neondb?sslmode=require
 BUSINESS_TIME_ZONE=America/New_York
-```
 
-El worker necesita además:
-
-```dotenv
-SOLACE_URL=wss://...
+SOLACE_URL=wss://...messaging.solace.cloud:443
 SOLACE_VPN=...
 SOLACE_USERNAME=...
 SOLACE_PASSWORD=...
@@ -244,185 +364,22 @@ SOLACE_QUEUE_RESULTS=newcron.global-dispatch.results.v1
 SOLACE_TOPIC_PREFIX=newcron/dispatch/v1
 ```
 
-`DATABASE_MIGRATION_URL` se reserva para migraciones controladas y `DATABASE_POOL_MAX` es opcional. No uses `NEXT_PUBLIC_` para secretos.
-
-## Base de datos
-
+### 3. Ejecutar migraciones de Base de Datos:
 ```bash
 pnpm run db:init
 ```
 
-Las migraciones se registran en `schema_migrations`. Tablas principales:
-
-- `dispatch_requests`: solicitudes originales y validación.
-- `available_dispatches`: cargas disponibles para transportistas.
-- `request_results`: resultados `Accepted` o `Cancelled`.
-- `outbox_events`: eventos pendientes de publicación.
-- `processed_events`: deduplicación por consumidor.
-
-## Desarrollo y verificaciones
-
+### 4. Ejecutar la aplicación en desarrollo:
 ```bash
+# Terminal 1: Aplicación Web Next.js
 pnpm dev
-pnpm run lint
-pnpm run typecheck
-pnpm run test
-pnpm run build
-```
 
-Smoke de Solace:
-
-```bash
-pnpm run solace:smoke
-```
-
-Worker local:
-
-```bash
+# Terminal 2: Worker de Solace y Outbox
 pnpm run worker:dev
 ```
 
-Smoke de extremo a extremo (web y worker activos):
-
+### 5. Pruebas y verificación de tipos:
 ```bash
-pnpm run dispatch:smoke
+pnpm run typecheck
+pnpm run test
 ```
-
-El script usa `APP_URL` o `http://localhost:3000`:
-
-```powershell
-$env:APP_URL = "https://tu-dominio.vercel.app"
-pnpm run dispatch:smoke
-```
-
-Comprueba aceptación, cancelación, duplicados, conflictos, outbox y proyecciones PostgreSQL.
-
-## API
-
-| Método | Endpoint | Propósito |
-| --- | --- | --- |
-| `POST` | `/api/dispatch-requests` | Validar y registrar una solicitud. |
-| `GET` | `/api/dispatch-requests` | Listar historial. |
-| `GET` | `/api/dispatch-requests/{id}` | Consultar detalle y asignación. |
-| `GET` | `/api/available-dispatches` | Listar cargas disponibles. |
-| `POST` | `/api/dispatch-requests/{id}/assign` | Aceptar atómicamente una carga. |
-
-HTTP 202 indica que la solicitud quedó registrada para procesamiento técnico; no significa que un transportista ya la haya asignado.
-
-## Solace Cloud
-
-Configura dos colas durables con ingreso y consumo habilitados:
-
-| Cola | Suscripciones |
-| --- | --- |
-| `newcron.global-dispatch.available.v1` | `newcron/dispatch/v1/available/*` |
-| `newcron.global-dispatch.results.v1` | `newcron/dispatch/v1/result/accepted/*` y `newcron/dispatch/v1/result/cancelled/*` |
-
-El usuario de mensajería necesita publicar en el prefijo de tópicos y consumir ambas colas. El último segmento del tópico es `shipperOrderId`.
-
-## Worker en Oracle VM
-
-Desde el repositorio clonado en la VM:
-
-```bash
-pnpm install --frozen-lockfile
-pnpm run db:init
-pm2 start pnpm --name global-dispatch-worker -- run worker:start
-pm2 save
-pm2 startup
-```
-
-Ejecuta el comando `sudo` que muestra `pm2 startup` y después:
-
-```bash
-pm2 save
-```
-
-Operación:
-
-```bash
-pm2 status
-pm2 logs global-dispatch-worker
-pm2 restart global-dispatch-worker --update-env
-pm2 stop global-dispatch-worker
-```
-
-Actualización desde GitHub:
-
-```bash
-cd ~/SolaceProject/SolaceProject
-git pull origin develop
-pnpm install --frozen-lockfile
-pm2 restart global-dispatch-worker --update-env
-```
-
-El worker no necesita un puerto HTTP público; solo conexiones salientes hacia Neon y Solace.
-
-## Vercel
-
-Configura en Vercel las variables de la aplicación web:
-
-```text
-DATABASE_URL
-BUSINESS_TIME_ZONE
-```
-
-Las variables `SOLACE_*` pertenecen únicamente al worker de Oracle. Separa Preview y Production para evitar que pruebas escriban en la base de demostración.
-
-## Solución de problemas
-
-### El worker no conecta a Solace
-
-Verifica URL WSS, Message VPN, usuario y contraseña de mensajería. No uses credenciales del portal. Revisa permisos de las colas.
-
-### La solicitud queda en `Pending`
-
-```bash
-pm2 status
-pm2 logs global-dispatch-worker
-```
-
-Después consulta `outbox_events`; si `published_at` es `NULL`, el broker aún no confirmó la publicación.
-
-### No aparece una carga en transportistas
-
-Comprueba que la solicitud sea `Accepted`, que exista en `available_dispatches` y que `assignment_status` sea `Available`.
-
-### Error de conexión a Neon
-
-Usa la cadena pooled en `DATABASE_URL`, conserva TLS y confirma que Vercel y Oracle apunten a la misma base.
-
-## Limitaciones de la demo
-
-- El transportista usa la identidad ficticia `demo-carrier-1`; aún no hay autenticación real.
-- Los paneles usan polling cada 2 segundos; SSE queda como mejora posterior.
-- La interfaz principal usa dos paradas y un vehículo.
-- Los mensajes ilegibles se registran y se confirman para evitar ciclos infinitos; producción debería usar una cola de mensajes muertos.
-- Esta demo debe ejecutarse con una sola instancia del worker.
-
-## Estructura relevante
-
-```text
-src/app/                 páginas, componentes y Route Handlers
-src/domain/              esquemas, reglas y eventos
-src/server/db/            pool y migraciones
-src/server/repositories/ consultas y proyecciones
-src/server/solace/       conexión y colas
-src/worker/              outbox y consumidores
-migrations/              migraciones PostgreSQL
-scripts/                 inicialización y smoke tests
-tests/                   pruebas de negocio
-```
-
-## Seguridad
-
-- No guardar secretos en Git.
-- Rotar credenciales si se exponen.
-- Mantener separados los usuarios administrativos y de mensajería.
-- No exponer conexiones PostgreSQL o Solace al navegador.
-
-## Entrega
-
-- Repositorio: [github.com/GlendyT/SolaceProject](https://github.com/GlendyT/SolaceProject)
-- Aplicación desplegada: publicar la URL actual de Vercel junto con el enlace del repositorio al entregar.
-- La entrega debe incluir este `README.md`, el código fuente y las instrucciones de ejecución. No incluye credenciales ni archivos `.env`.

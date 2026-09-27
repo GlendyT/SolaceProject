@@ -2,7 +2,9 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { getPool } from "./pool";
 
-export async function runMigrations(migrationsDirectory = path.resolve(process.cwd(), "migrations")) {
+export async function runMigrations(
+  migrationsDirectory = path.resolve(process.cwd(), "migrations"),
+) {
   const pool = getPool();
   const client = await pool.connect();
   try {
@@ -14,12 +16,22 @@ export async function runMigrations(migrationsDirectory = path.resolve(process.c
       )
     `);
 
-    const files = (await readdir(migrationsDirectory)).filter((file) => file.endsWith(".sql")).sort();
+    const files = (await readdir(migrationsDirectory))
+      .filter((file) => file.endsWith(".sql"))
+      .sort();
     for (const file of files) {
-      const alreadyApplied = await client.query("SELECT 1 FROM schema_migrations WHERE version = $1", [file]);
+      const alreadyApplied = await client.query(
+        "SELECT 1 FROM schema_migrations WHERE version = $1",
+        [file],
+      );
       if (alreadyApplied.rowCount) continue;
-      await client.query(await readFile(path.join(migrationsDirectory, file), "utf8"));
-      await client.query("INSERT INTO schema_migrations (version) VALUES ($1)", [file]);
+      await client.query(
+        await readFile(path.join(migrationsDirectory, file), "utf8"),
+      );
+      await client.query(
+        "INSERT INTO schema_migrations (version) VALUES ($1)",
+        [file],
+      );
     }
     await client.query("COMMIT");
   } catch (error) {

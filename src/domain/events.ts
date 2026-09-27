@@ -14,7 +14,10 @@ export type DispatchEvent<TPayload> = {
   payload: TPayload;
 };
 
-export function createAvailableEvent(payload: DispatchRequest, occurredAt = new Date()): DispatchEvent<DispatchRequest> {
+export function createAvailableEvent(
+  payload: DispatchRequest,
+  occurredAt = new Date(),
+): DispatchEvent<DispatchRequest> {
   return {
     eventId: randomUUID(),
     eventType: "dispatch.available.v1",
@@ -25,7 +28,10 @@ export function createAvailableEvent(payload: DispatchRequest, occurredAt = new 
   };
 }
 
-export function createResultEvent(result: DispatchResult, occurredAt = new Date()): DispatchEvent<DispatchResult> {
+export function createResultEvent(
+  result: DispatchResult,
+  occurredAt = new Date(),
+): DispatchEvent<DispatchResult> {
   return {
     eventId: randomUUID(),
     eventType: "dispatch.result.v1",

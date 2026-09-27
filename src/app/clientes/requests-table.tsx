@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, CalendarDays, RefreshCw, Search } from "lucide-react";
+import { ArrowUpRight, CalendarDays, FileCode, RefreshCw, Search } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
+import { PayloadModal } from "@/components/payload-modal";
 
 type RequestRow = {
   shipperOrderId: string;
@@ -15,6 +16,7 @@ type RequestRow = {
   pickupState: string | null;
   deliveryCity: string | null;
   deliveryState: string | null;
+  rawPayload?: unknown;
   totalCount: number;
   acceptedCount: number;
   pendingCount: number;
@@ -22,10 +24,17 @@ type RequestRow = {
 
 function formatDate(value: string | null) {
   if (!value) return "Pendiente";
-  const isoValue = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00Z` : value;
+  const isoValue = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? `${value}T00:00:00Z`
+    : value;
   const date = new Date(isoValue);
   if (Number.isNaN(date.getTime())) return "Fecha inválida";
-  return new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(date);
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
 }
 function badgeStatus(
   status: RequestRow["status"],
@@ -42,6 +51,11 @@ export function RequestsTable() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [selectedPayload, setSelectedPayload] = useState<{
+    title: string;
+    subtitle?: string;
+    data: unknown;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,9 +83,16 @@ export function RequestsTable() {
   }, []);
 
   useEffect(() => {
-    const initial = window.setTimeout(() => { void load(); }, 0);
-    const interval = window.setInterval(() => { void load(); }, 2_000);
-    return () => { window.clearTimeout(initial); window.clearInterval(interval); };
+    const initial = window.setTimeout(() => {
+      void load();
+    }, 0);
+    const interval = window.setInterval(() => {
+      void load();
+    }, 2_000);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(interval);
+    };
   }, [load]);
   const filtered = requests.filter((request) =>
     `${request.shipperOrderId} ${request.pickupCity ?? ""} ${request.deliveryCity ?? ""}`
@@ -195,13 +216,40 @@ export function RequestsTable() {
                       <StatusBadge status={badgeStatus(request.status)} />
                     </td>
                     <td className="px-6 py-5">
-                      <Link
-                        href={`/clientes/${encodeURIComponent(request.shipperOrderId)}`}
-                        aria-label={`Ver solicitud ${request.shipperOrderId}`}
-                        className="flex size-9 items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600"
-                      >
-                        <ArrowUpRight className="size-4" />
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedPayload({
+                              title: `Solicitud #${request.shipperOrderId}`,
+                              subtitle: `Estado: ${request.status} | ${request.pickupCity ?? ""}, ${request.pickupState ?? ""} → ${request.deliveryCity ?? ""}, ${request.deliveryState ?? ""}`,
+                              data: {
+                                status: request.status,
+                                notes: request.notes,
+                                ...(typeof request.rawPayload === "object" && request.rawPayload !== null
+                                  ? (request.rawPayload as Record<string, unknown>)
+                                  : {
+                                      shipperOrderId: request.shipperOrderId,
+                                      pickupDate: request.pickupDate,
+                                      deliveryDate: request.deliveryDate,
+                                    }),
+                              },
+                            })
+                          }
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
+                          title="Ver payload de la solicitud"
+                        >
+                          <FileCode className="size-3.5" />
+                          <span>Payload</span>
+                        </button>
+                        <Link
+                          href={`/clientes/${encodeURIComponent(request.shipperOrderId)}`}
+                          aria-label={`Ver solicitud ${request.shipperOrderId}`}
+                          className="flex size-8 items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+                        >
+                          <ArrowUpRight className="size-4" />
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -210,6 +258,14 @@ export function RequestsTable() {
           </div>
         )}
       </section>
+
+      <PayloadModal
+        isOpen={Boolean(selectedPayload)}
+        onClose={() => setSelectedPayload(null)}
+        title={selectedPayload?.title ?? "Payload"}
+        subtitle={selectedPayload?.subtitle}
+        payload={selectedPayload?.data}
+      />
     </>
   );
 }
