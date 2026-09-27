@@ -38,8 +38,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Truck className="size-5" aria-hidden="true" />
           </div>
           <div>
-            <p className="text-base font-bold tracking-tight text-slate-950">Global Dispatch</p>
-            <p className="text-xs font-medium text-slate-500">NewCron operations</p>
+            <p className="text-base font-bold tracking-tight text-slate-950">
+              Global Dispatch
+            </p>
+            <p className="text-xs font-medium text-slate-500">
+              NewCron operations
+            </p>
           </div>
         </div>
 
@@ -60,8 +64,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <Icon className="size-[18px]" aria-hidden="true" />
                   </span>
                   <span>
-                    <span className="block text-sm font-semibold text-slate-700">{item.label}</span>
-                    <span className="block text-xs text-slate-400">{item.description}</span>
+                    <span className="block text-sm font-semibold text-slate-700">
+                      {item.label}
+                    </span>
+                    <span className="block text-xs text-slate-400">
+                      {item.description}
+                    </span>
                   </span>
                 </Link>
               );
@@ -71,14 +79,18 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <div className="m-4 rounded-2xl bg-slate-900 p-4 text-white">
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-300">Estado del sistema</span>
+            <span className="text-xs font-semibold text-slate-300">
+              Estado del sistema
+            </span>
             <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-300">
               <span className="size-1.5 rounded-full bg-emerald-400" /> Demo
             </span>
           </div>
           <div className="space-y-2 text-xs text-slate-400">
             <div className="flex items-center justify-between">
-              <span className="flex items-center gap-2"><Activity className="size-3.5" /> Solace Cloud</span>
+              <span className="flex items-center gap-2">
+                <Activity className="size-3.5" /> Solace Cloud
+              </span>
               <span className="text-emerald-300">Conectado</span>
             </div>
             <div className="flex items-center justify-between">
@@ -102,17 +114,29 @@ export function AppShell({ children }: { children: ReactNode }) {
             Centro de operaciones
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden text-xs font-medium text-slate-500 sm:inline">Modo demostración</span>
-            <div className="flex size-9 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700" aria-label="Usuario demo">
+            <span className="hidden text-xs font-medium text-slate-500 sm:inline">
+              Modo demostración
+            </span>
+            <div
+              className="flex size-9 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700"
+              aria-label="Usuario demo"
+            >
               ND
             </div>
           </div>
         </header>
 
         <div className="border-b border-slate-200 bg-white px-4 py-2 lg:hidden">
-          <nav className="flex gap-1 overflow-x-auto" aria-label="Navegación móvil">
+          <nav
+            className="flex gap-1 overflow-x-auto"
+            aria-label="Navegación móvil"
+          >
             {navigation.map((item) => (
-              <Link key={item.href} href={item.href} className="whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">
+              <Link
+                key={item.href}
+                href={item.href}
+                className="whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+              >
                 {item.label}
               </Link>
             ))}

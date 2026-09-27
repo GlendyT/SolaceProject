@@ -7,6 +7,9 @@ export async function GET() {
     return Response.json({ dispatches: await listAvailableDispatches() });
   } catch (error) {
     console.error("Failed to list available dispatches", error);
-    return Response.json({ error: "Unable to load available dispatches." }, { status: 500 });
+    return Response.json(
+      { error: "Unable to load available dispatches." },
+      { status: 500 },
+    );
   }
 }

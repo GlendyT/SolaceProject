@@ -1,17 +1,241 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, Truck, XCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  FileCode,
+  Truck,
+  XCircle,
+} from "lucide-react";
 import { useEffect, useState } from "react";
+import { PayloadModal } from "@/components/payload-modal";
 
-type RequestDetail = { shipperOrderId: string; pickupDate: string; deliveryDate: string; price: string | number; payload: { transportationReleaseNotes?: string; stops?: { stopNumber: number; city: string; state: string; postalCode: string }[]; vehicles?: { year: string; make: string; model: string }[] }; status?: "Accepted" | "Cancelled"; notes?: string; cancellationReason?: string; assignmentStatus?: "Available" | "Assigned"; carrierId?: string; assignedAt?: string };
-function formatDate(value?: string) { if (!value) return "Pendiente"; const date = new Date(value.length === 10 ? `${value}T00:00:00Z` : value); return Number.isNaN(date.getTime()) ? "Fecha inválida" : new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeZone: "UTC" }).format(date); }
+type RequestDetail = {
+  shipperOrderId: string;
+  pickupDate: string;
+  deliveryDate: string;
+  price: string | number;
+  payload: {
+    transportationReleaseNotes?: string;
+    stops?: {
+      stopNumber: number;
+      city: string;
+      state: string;
+      postalCode: string;
+    }[];
+    vehicles?: { year: string; make: string; model: string }[];
+  };
+  status?: "Accepted" | "Cancelled";
+  notes?: string;
+  cancellationReason?: string;
+  assignmentStatus?: "Available" | "Assigned";
+  carrierId?: string;
+  assignedAt?: string;
+};
+function formatDate(value?: string) {
+  if (!value) return "Pendiente";
+  const date = new Date(value.length === 10 ? `${value}T00:00:00Z` : value);
+  return Number.isNaN(date.getTime())
+    ? "Fecha inválida"
+    : new Intl.DateTimeFormat("es-MX", {
+        dateStyle: "medium",
+        timeZone: "UTC",
+      }).format(date);
+}
 
 export function DetailClient({ id }: { id: string }) {
-  const [request, setRequest] = useState<RequestDetail | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null);
-  useEffect(() => { const controller = new AbortController(); const timer = window.setTimeout(() => { void fetch(`/api/dispatch-requests/${encodeURIComponent(id)}`, { signal: controller.signal, cache: "no-store" }).then(async (response) => { const body = (await response.json()) as { request?: RequestDetail; error?: string }; if (!response.ok) throw new Error(body.error ?? "No fue posible cargar la solicitud."); setRequest(body.request ?? null); }).catch((reason: unknown) => { if (reason instanceof DOMException && reason.name === "AbortError") return; setError(reason instanceof Error ? reason.message : "No fue posible cargar la solicitud."); }).finally(() => setLoading(false)); }, 0); return () => { window.clearTimeout(timer); controller.abort(); }; }, [id]);
-  if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500">Cargando detalle...</div>;
-  if (error || !request) return <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-800">{error ?? "Solicitud no encontrada."}</div>;
+  const [request, setRequest] = useState<RequestDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showPayloadModal, setShowPayloadModal] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void fetch(`/api/dispatch-requests/${encodeURIComponent(id)}`, {
+        signal: controller.signal,
+        cache: "no-store",
+      })
+        .then(async (response) => {
+          const body = (await response.json()) as {
+            request?: RequestDetail;
+            error?: string;
+          };
+          if (!response.ok)
+            throw new Error(
+              body.error ?? "No fue posible cargar la solicitud.",
+            );
+          setRequest(body.request ?? null);
+        })
+        .catch((reason: unknown) => {
+          if (reason instanceof DOMException && reason.name === "AbortError")
+            return;
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "No fue posible cargar la solicitud.",
+          );
+        })
+        .finally(() => setLoading(false));
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [id]);
+  if (loading)
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500">
+        Cargando detalle...
+      </div>
+    );
+  if (error || !request)
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-800">
+        {error ?? "Solicitud no encontrada."}
+      </div>
+    );
   const stops = request.payload.stops ?? [];
-  return <div className="space-y-6"><Link href="/clientes" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-blue-700"><ArrowLeft className="size-4" />Volver al historial</Link><div className="flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="text-sm font-semibold text-blue-600">Detalle de solicitud</p><h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">#{request.shipperOrderId}</h1></div><span className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-bold ${request.status === "Accepted" ? "bg-emerald-50 text-emerald-700" : request.status === "Cancelled" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"}`}>{request.status === "Accepted" ? <CheckCircle2 className="size-4" /> : request.status === "Cancelled" ? <XCircle className="size-4" /> : <Clock3 className="size-4" />}{request.status ?? "Pending"}</span></div><div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]"><section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="font-bold text-slate-900">Información de la carga</h2><div className="mt-5 grid gap-4 sm:grid-cols-3"><div><p className="text-xs font-bold uppercase text-slate-400">Pickup</p><p className="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-700"><CalendarDays className="size-4 text-blue-600" />{formatDate(request.pickupDate)}</p></div><div><p className="text-xs font-bold uppercase text-slate-400">Delivery</p><p className="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-700"><CalendarDays className="size-4 text-blue-600" />{formatDate(request.deliveryDate)}</p></div><div><p className="text-xs font-bold uppercase text-slate-400">Precio</p><p className="mt-1 text-sm font-semibold text-slate-700">${Number(request.price).toFixed(2)} USD</p></div></div><div className="mt-6 border-t border-slate-100 pt-5"><h3 className="text-sm font-bold text-slate-700">Paradas</h3><div className="mt-3 space-y-3">{stops.map((stop) => <div key={stop.stopNumber} className="flex items-center gap-3 rounded-xl bg-slate-50 p-3"><span className="flex size-8 items-center justify-center rounded-lg bg-blue-100 text-xs font-bold text-blue-700">{stop.stopNumber}</span><span className="text-sm text-slate-700">{stop.city}, {stop.state} <span className="text-slate-400">{stop.postalCode}</span></span></div>)}</div></div></section><aside className="space-y-5"><div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="font-bold text-slate-900">Resultado</h2><p className="mt-3 flex gap-2 text-sm leading-6 text-slate-600">{request.status === "Cancelled" ? <XCircle className="mt-1 size-4 shrink-0 text-rose-600" /> : <CheckCircle2 className="mt-1 size-4 shrink-0 text-emerald-600" />}{request.notes ?? request.cancellationReason ?? "Esperando procesamiento del worker."}</p></div><div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="font-bold text-slate-900">Asignación</h2>{request.assignmentStatus === "Assigned" ? <p className="mt-3 flex gap-2 text-sm text-slate-600"><Truck className="size-4 text-blue-600" />{request.carrierId} · {formatDate(request.assignedAt)}</p> : <p className="mt-3 text-sm text-slate-500">Todavía no hay transportista asignado.</p>}</div></aside></div></div>;
+  return (
+    <div className="space-y-6">
+      <Link
+        href="/clientes"
+        className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-blue-700"
+      >
+        <ArrowLeft className="size-4" />
+        Volver al historial
+      </Link>
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+        <div>
+          <p className="text-sm font-semibold text-blue-600">
+            Detalle de solicitud
+          </p>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
+            #{request.shipperOrderId}
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowPayloadModal(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 hover:text-blue-600 transition-colors cursor-pointer"
+          >
+            <FileCode className="size-4" />
+            Ver payload
+          </button>
+          <span
+            className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-bold ${request.status === "Accepted" ? "bg-emerald-50 text-emerald-700" : request.status === "Cancelled" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"}`}
+          >
+            {request.status === "Accepted" ? (
+              <CheckCircle2 className="size-4" />
+            ) : request.status === "Cancelled" ? (
+              <XCircle className="size-4" />
+            ) : (
+              <Clock3 className="size-4" />
+            )}
+            {request.status ?? "Pending"}
+          </span>
+        </div>
+      </div>
+      <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="font-bold text-slate-900">Información de la carga</h2>
+          <div className="mt-5 grid gap-4 sm:grid-cols-3">
+            <div>
+              <p className="text-xs font-bold uppercase text-slate-400">
+                Pickup
+              </p>
+              <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <CalendarDays className="size-4 text-blue-600" />
+                {formatDate(request.pickupDate)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase text-slate-400">
+                Delivery
+              </p>
+              <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <CalendarDays className="size-4 text-blue-600" />
+                {formatDate(request.deliveryDate)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase text-slate-400">
+                Precio
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-700">
+                ${Number(request.price).toFixed(2)} USD
+              </p>
+            </div>
+          </div>
+          <div className="mt-6 border-t border-slate-100 pt-5">
+            <h3 className="text-sm font-bold text-slate-700">Paradas</h3>
+            <div className="mt-3 space-y-3">
+              {stops.map((stop) => (
+                <div
+                  key={stop.stopNumber}
+                  className="flex items-center gap-3 rounded-xl bg-slate-50 p-3"
+                >
+                  <span className="flex size-8 items-center justify-center rounded-lg bg-blue-100 text-xs font-bold text-blue-700">
+                    {stop.stopNumber}
+                  </span>
+                  <span className="text-sm text-slate-700">
+                    {stop.city}, {stop.state}{" "}
+                    <span className="text-slate-400">{stop.postalCode}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+        <aside className="space-y-5">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="font-bold text-slate-900">Resultado</h2>
+            <p className="mt-3 flex gap-2 text-sm leading-6 text-slate-600">
+              {request.status === "Cancelled" ? (
+                <XCircle className="mt-1 size-4 shrink-0 text-rose-600" />
+              ) : (
+                <CheckCircle2 className="mt-1 size-4 shrink-0 text-emerald-600" />
+              )}
+              {request.notes ??
+                request.cancellationReason ??
+                "Esperando procesamiento del worker."}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="font-bold text-slate-900">Asignación</h2>
+            {request.assignmentStatus === "Assigned" ? (
+              <p className="mt-3 flex gap-2 text-sm text-slate-600">
+                <Truck className="size-4 text-blue-600" />
+                {request.carrierId} · {formatDate(request.assignedAt)}
+              </p>
+            ) : (
+              <p className="mt-3 text-sm text-slate-500">
+                Todavía no hay transportista asignado.
+              </p>
+            )}
+          </div>
+        </aside>
+      </div>
+
+      <PayloadModal
+        isOpen={showPayloadModal}
+        onClose={() => setShowPayloadModal(false)}
+        title={`Payload de la solicitud #${request.shipperOrderId}`}
+        subtitle={`Estado: ${request.status ?? "Pending"} | Precio: $${request.price}`}
+        payload={{
+          status: request.status ?? "Pending",
+          notes:
+            request.notes ??
+            request.cancellationReason ??
+            "Sin notas adicionales",
+          ...(typeof request.payload === "object" && request.payload !== null
+            ? request.payload
+            : {}),
+        }}
+      />
+    </div>
+  );
 }

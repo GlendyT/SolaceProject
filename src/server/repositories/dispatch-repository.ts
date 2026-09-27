@@ -4,7 +4,9 @@ import type { DispatchValidationResult } from "@/domain/dispatch-schema";
 import { getPool, withTransaction } from "@/server/db/pool";
 
 export class DuplicateDispatchError extends Error {
-  constructor(message = "A request with this shipperOrderId already exists with different data.") {
+  constructor(
+    message = "A request with this shipperOrderId already exists with different data.",
+  ) {
     super(message);
     this.name = "DuplicateDispatchError";
   }
@@ -24,6 +26,7 @@ export async function listDispatchRequests() {
        COALESCE(rr.status, 'Pending') AS status,
        COALESCE(rr.notes, 'Esperando procesamiento del worker.') AS notes,
        rr.received_at AS "resultReceivedAt",
+       dr.raw_payload AS "rawPayload",
        dr.raw_payload->'stops'->0->>'city' AS "pickupCity",
        dr.raw_payload->'stops'->0->>'state' AS "pickupState",
        dr.raw_payload->'stops'->1->>'city' AS "deliveryCity",
@@ -73,7 +76,10 @@ export async function getDispatchRequest(shipperOrderId: string) {
 export class DispatchNotFoundError extends Error {}
 export class DispatchAlreadyAssignedError extends Error {}
 
-export async function assignDispatch(shipperOrderId: string, carrierId: string) {
+export async function assignDispatch(
+  shipperOrderId: string,
+  carrierId: string,
+) {
   return withTransaction(async (client) => {
     const result = await client.query(
       `UPDATE available_dispatches
@@ -83,20 +89,70 @@ export async function assignDispatch(shipperOrderId: string, carrierId: string) 
       [shipperOrderId, carrierId],
     );
     if (result.rowCount) return result.rows[0];
-    const exists = await client.query("SELECT assignment_status FROM available_dispatches WHERE shipper_order_id = $1", [shipperOrderId]);
-    if (!exists.rowCount) throw new DispatchNotFoundError("Dispatch was not found.");
+    const exists = await client.query(
+      "SELECT assignment_status FROM available_dispatches WHERE shipper_order_id = $1",
+      [shipperOrderId],
+    );
+    if (!exists.rowCount)
+      throw new DispatchNotFoundError("Dispatch was not found.");
     throw new DispatchAlreadyAssignedError("Dispatch is no longer available.");
+  });
+}
+
+export async function cancelDispatch(
+  shipperOrderId: string,
+  reason = "Cancelada por el transportista.",
+) {
+  return withTransaction(async (client) => {
+    const result = await client.query(
+      `UPDATE available_dispatches
+          SET assignment_status = 'Cancelled', assigned_at = now()
+        WHERE shipper_order_id = $1 AND assignment_status = 'Available'
+        RETURNING shipper_order_id AS "shipperOrderId"`,
+      [shipperOrderId],
+    );
+    if (!result.rowCount) {
+      const exists = await client.query(
+        "SELECT assignment_status FROM available_dispatches WHERE shipper_order_id = $1",
+        [shipperOrderId],
+      );
+      if (!exists.rowCount) {
+        throw new DispatchNotFoundError("Dispatch was not found.");
+      }
+      throw new DispatchAlreadyAssignedError("Dispatch is no longer available.");
+    }
+
+    await client.query(
+      `INSERT INTO request_results (shipper_order_id, status, notes)
+       VALUES ($1, 'Cancelled', $2)
+       ON CONFLICT (shipper_order_id)
+       DO UPDATE SET status = 'Cancelled', notes = EXCLUDED.notes, received_at = now()`,
+      [shipperOrderId, reason],
+    );
+
+    await client.query(
+      `UPDATE dispatch_requests
+          SET validation_status = 'Cancelled', cancellation_reason = $2, updated_at = now()
+        WHERE shipper_order_id = $1`,
+      [shipperOrderId, reason],
+    );
+
+    return { shipperOrderId, status: "Cancelled", notes: reason };
   });
 }
 
 function validDateOrNull(value: unknown) {
   if (typeof value !== "string") return null;
   const parsed = DateTime.fromFormat(value, "yyyy-MM-dd", { zone: "UTC" });
-  return parsed.isValid && parsed.toFormat("yyyy-MM-dd") === value ? value : null;
+  return parsed.isValid && parsed.toFormat("yyyy-MM-dd") === value
+    ? value
+    : null;
 }
 
 function numberOrNull(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : null;
 }
 
 function getPayload(result: DispatchValidationResult) {
@@ -111,13 +167,26 @@ export async function saveDispatchRequest(
   const shipperOrderId = validation.result.shipperOrderId;
   const rawPayload = JSON.stringify(input ?? null);
   const payload = getPayload(validation);
-  const topicPrefix = (process.env.SOLACE_TOPIC_PREFIX ?? "newcron/dispatch/v1").replace(/\/$/, "");
+  const topicPrefix = (
+    process.env.SOLACE_TOPIC_PREFIX ?? "newcron/dispatch/v1"
+  ).replace(/\/$/, "");
   const events = payload
     ? [
-        { event: createAvailableEvent(payload, receivedAt), topic: `${topicPrefix}/available/${shipperOrderId}` },
-        { event: createResultEvent(validation.result, receivedAt), topic: `${topicPrefix}/result/accepted/${shipperOrderId}` },
+        {
+          event: createAvailableEvent(payload, receivedAt),
+          topic: `${topicPrefix}/available/${shipperOrderId}`,
+        },
+        {
+          event: createResultEvent(validation.result, receivedAt),
+          topic: `${topicPrefix}/result/accepted/${shipperOrderId}`,
+        },
       ]
-    : [{ event: createResultEvent(validation.result, receivedAt), topic: `${topicPrefix}/result/cancelled/${shipperOrderId}` }];
+    : [
+        {
+          event: createResultEvent(validation.result, receivedAt),
+          topic: `${topicPrefix}/result/cancelled/${shipperOrderId}`,
+        },
+      ];
 
   return withTransaction(async (client) => {
     const existing = await client.query<{ same: boolean }>(
@@ -149,7 +218,13 @@ export async function saveDispatchRequest(
       await client.query(
         `INSERT INTO outbox_events (event_id, shipper_order_id, event_type, topic, payload)
          VALUES ($1, $2, $3, $4, $5::jsonb)`,
-        [event.eventId, shipperOrderId, event.eventType, topic, JSON.stringify(event)],
+        [
+          event.eventId,
+          shipperOrderId,
+          event.eventType,
+          topic,
+          JSON.stringify(event),
+        ],
       );
     }
     return { duplicate: false, shipperOrderId };

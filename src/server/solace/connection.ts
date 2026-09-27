@@ -16,8 +16,13 @@ function readConfig(): SolaceConfig {
     userName: process.env.SOLACE_USERNAME,
     password: process.env.SOLACE_PASSWORD,
   };
-  const missing = Object.entries(values).filter(([, value]) => !value).map(([key]) => key);
-  if (missing.length > 0) throw new Error(`Missing Solace environment variables: ${missing.join(", ")}`);
+  const missing = Object.entries(values)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+  if (missing.length > 0)
+    throw new Error(
+      `Missing Solace environment variables: ${missing.join(", ")}`,
+    );
   return values as SolaceConfig;
 }
 
@@ -53,11 +58,19 @@ export function connectSolace() {
     };
     const onFailed = (event: solace.SessionEvent) => {
       cleanup();
-      reject(new Error(`Solace connection failed: ${event.infoStr || event.reason || "unknown error"}`));
+      reject(
+        new Error(
+          `Solace connection failed: ${event.infoStr || event.reason || "unknown error"}`,
+        ),
+      );
     };
     const onDisconnected = (event: solace.SessionEvent) => {
       cleanup();
-      reject(new Error(`Solace disconnected before connection completed: ${event.infoStr || event.reason || "unknown error"}`));
+      reject(
+        new Error(
+          `Solace disconnected before connection completed: ${event.infoStr || event.reason || "unknown error"}`,
+        ),
+      );
     };
     const cleanup = () => {
       session.removeAllListeners();

@@ -6,7 +6,11 @@ const styles = {
   pending: "bg-amber-50 text-amber-700 ring-amber-200",
 } as const;
 
-export function StatusBadge({ status }: { status: "accepted" | "cancelled" | "pending" }) {
+export function StatusBadge({
+  status,
+}: {
+  status: "accepted" | "cancelled" | "pending";
+}) {
   const content = {
     accepted: { label: "Accepted", icon: CheckCircle2 },
     cancelled: { label: "Cancelled", icon: XCircle },
@@ -15,7 +19,9 @@ export function StatusBadge({ status }: { status: "accepted" | "cancelled" | "pe
   const Icon = content.icon;
 
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset ${styles[status]}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset ${styles[status]}`}
+    >
       <Icon className="size-3.5" aria-hidden="true" />
       {content.label}
     </span>
